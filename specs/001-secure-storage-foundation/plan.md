@@ -37,11 +37,11 @@ configuration without hitting real AWS.
 | VII. Phased Builds | ✅ PASS | This is Phase 1; acceptance criteria defined before Phase 2 begins |
 
 **Security Checklist (Phase 1 scope)**:
-- [ ] No `*` in any IAM policy action or resource field
-- [ ] All S3 buckets have `block_public_acls = true`, `block_public_policy = true`
-- [ ] SSE-S3 enabled on all three buckets
-- [ ] No secrets or credentials in `.tf`, `.py`, or `.json` files in git
-- [ ] Terraform state stored remotely with DynamoDB lock
+- [X] No `*` in any IAM policy action or resource field
+- [X] All S3 buckets have `block_public_acls = true`, `block_public_policy = true`
+- [X] SSE-S3 enabled on all three buckets
+- [X] No secrets or credentials in `.tf`, `.py`, or `.json` files in git
+- [X] Terraform state stored remotely with DynamoDB lock
 
 **Violations**: None. Observable-by-Default is partial but CloudWatch alarms are explicitly
 Phase 6 per the constitution's build phases. No justification required.
