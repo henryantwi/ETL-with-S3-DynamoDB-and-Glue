@@ -98,10 +98,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T022 [US4] Implement `etl-stepfunctions-role` in `terraform/modules/iam/main.tf` — trust `states.amazonaws.com`; managed policy `etl-stepfunctions-policy` with: (1) `glue:StartJobRun`/`glue:GetJobRun` scoped to `arn:aws:glue:{region}:{account}:job/etl-*` via `StringLike`; (2) `s3:GetObject` on raw bucket objects; (3) `s3:PutObject` on archive bucket objects; (4) `s3:DeleteObject` on raw bucket objects (archive move pattern)
-- [ ] T023 [US4] Add policy guard comment in `terraform/modules/iam/main.tf` noting Phase 2 will tighten `StringLike etl-*` to exact ARNs once Glue jobs exist
-- [ ] T024 [US4] Run `terraform validate` and `terraform plan` (dry run) — confirm no `*` actions or resources in plan output; document expected output in `scripts/smoke_test_s3.py` header comment
-- [ ] T025 [US4] Scan all `.tf`, `.py`, `pyproject.toml` files for hardcoded credential patterns; confirm zero findings (manual grep check documented in quickstart.md)
+- [X] T022 [US4] Implement `etl-stepfunctions-role` in `terraform/modules/iam/main.tf` — trust `states.amazonaws.com`; managed policy `etl-stepfunctions-policy` with: (1) `glue:StartJobRun`/`glue:GetJobRun` scoped to `arn:aws:glue:{region}:{account}:job/etl-*` via `StringLike`; (2) `s3:GetObject` on raw bucket objects; (3) `s3:PutObject` on archive bucket objects; (4) `s3:DeleteObject` on raw bucket objects (archive move pattern)
+- [X] T023 [US4] Add policy guard comment in `terraform/modules/iam/main.tf` noting Phase 2 will tighten `StringLike etl-*` to exact ARNs once Glue jobs exist
+- [X] T024 [US4] Run `terraform validate` and `terraform plan` (dry run) — confirm no `*` actions or resources in plan output; document expected output in `scripts/smoke_test_s3.py` header comment
+- [X] T025 [US4] Scan all `.tf`, `.py`, `pyproject.toml` files for hardcoded credential patterns; confirm zero findings (manual grep check documented in quickstart.md)
 
 **Checkpoint**: User Story 4 complete — all IAM roles least-privilege, no credentials in code
 

@@ -105,3 +105,21 @@ aws iam simulate-principal-policy \
   --action-names s3:PutObject \
   --resource-arns "arn:aws:s3:::archive-etl-dev-abc123/test.csv"
 ```
+
+---
+
+## 7. Security Audit (manual)
+
+```bash
+# (a) Confirm no wildcard actions or resources in plan output
+cd terraform
+terraform validate
+terraform plan -out tfplan
+terraform show -json tfplan | grep -E '"\*"' || echo "OK: no wildcards"
+
+# (b) Scan for hardcoded credentials (also asserted by smoke test)
+grep -rEn "AKIA[0-9A-Z]{16}|aws_secret_access_key\s*=" \
+  terraform/ scripts/ pyproject.toml && echo "FAIL" || echo "OK: no credentials"
+```
+
+Expected: zero matches for wildcards; zero matches for credential patterns.

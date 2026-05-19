@@ -96,8 +96,12 @@ resource "aws_iam_role_policy_attachment" "glue_validation" {
 #
 # Phase 1 scope: glue:StartJobRun + glue:GetJobRun (StringLike etl-*) plus
 # raw GetObject / archive PutObject / raw DeleteObject for archive-move flow.
-# NOTE: StringLike on etl-* job ARNs is a Phase 1 placeholder. Tighten to
-# exact ARNs in Phase 2 once Glue jobs exist (see plan.md research Decision 6).
+#
+# POLICY GUARD: StringLike on `etl-*` Glue job ARN prefix is a Phase 1
+# placeholder. Phase 2 MUST tighten this to exact job ARNs once Glue jobs
+# exist (`arn:aws:glue:{region}:{account}:job/etl-validation`, etc.). No `*`
+# in any action or resource — confirmed by `terraform plan` audit (T024).
+# See specs/001-secure-storage-foundation/research.md Decision 6.
 ###############################################################################
 
 data "aws_iam_policy_document" "stepfunctions_trust" {
