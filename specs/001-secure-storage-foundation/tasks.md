@@ -111,13 +111,13 @@
 
 **Purpose**: Security checklist sign-off, final validation, documentation
 
-- [ ] T026 [P] Verify security checklist from plan.md — no `*` in any IAM action/resource, all blocks true, SSE-S3 on all buckets, no secrets in git, remote state configured
-- [ ] T027 Run quickstart.md validation scenario end-to-end: `uv sync`, `uv run pytest scripts/smoke_test_s3.py` — all assertions pass
-- [ ] T028 [P] Update `terraform/outputs.tf` with all final outputs: `raw_bucket_arn`, `archive_bucket_arn`, `glue_scripts_bucket_arn`, `glue_validation_role_arn`, `stepfunctions_role_arn`
-- [ ] T029 [P] Add `.gitignore` entries: `**/.terraform/`, `*.tfstate`, `*.tfstate.backup`, `*.tfvars` (credentials), `.terraform.lock.hcl` optional keep
-- [ ] T030 Validate `terraform fmt -check` passes on all `.tf` files
-- [ ] T031 Add `aws_s3_bucket_lifecycle_configuration` to `terraform/modules/s3/main.tf` gated by `enable_lifecycle` variable. Instantiate on archive bucket in `terraform/main.tf` with: transition to GLACIER at 90 days, expiration at 365 days (per constitution Security Requirements)
-- [ ] T032 Extend moto smoke test in `scripts/smoke_test_s3.py` to assert archive bucket lifecycle config present (transition 90d → GLACIER, expiration 365d) when enabled
+- [X] T026 [P] Verify security checklist from plan.md — no `*` in any IAM action/resource, all blocks true, SSE-S3 on all buckets, no secrets in git, remote state configured
+- [X] T027 Run quickstart.md validation scenario end-to-end: `uv sync`, `uv run pytest scripts/smoke_test_s3.py` — all assertions pass
+- [X] T028 [P] Update `terraform/outputs.tf` with all final outputs: `raw_bucket_arn`, `archive_bucket_arn`, `glue_scripts_bucket_arn`, `glue_validation_role_arn`, `stepfunctions_role_arn`
+- [X] T029 [P] Add `.gitignore` entries: `**/.terraform/`, `*.tfstate`, `*.tfstate.backup`, `*.tfvars` (credentials), `.terraform.lock.hcl` optional keep
+- [X] T030 Validate `terraform fmt -check` passes on all `.tf` files
+- [X] T031 Add `aws_s3_bucket_lifecycle_configuration` to `terraform/modules/s3/main.tf` gated by `enable_lifecycle` variable. Instantiate on archive bucket in `terraform/main.tf` with: transition to GLACIER at 90 days, expiration at 365 days (per constitution Security Requirements)
+- [X] T032 Extend moto smoke test in `scripts/smoke_test_s3.py` to assert archive bucket lifecycle config present (transition 90d → GLACIER, expiration 365d) when enabled
 
 ---
 
