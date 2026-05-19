@@ -16,12 +16,12 @@
 
 **Purpose**: Project initialization — Python env, Terraform skeleton, remote state bootstrap
 
-- [ ] T001 Create repository directory structure per plan.md (`terraform/modules/s3/`, `terraform/modules/iam/`, `scripts/`)
-- [ ] T002 Create `pyproject.toml` with uv project config and dev dependencies: `boto3`, `pytest`, `moto[s3]`
-- [ ] T003 Create `.python-version` pinned to `3.12`
-- [ ] T004 [P] Create `terraform/variables.tf` with top-level variables (`project_name`, `environment`, `bucket_suffix`, `aws_region`, `aws_account_id`)
-- [ ] T005 [P] Create `terraform/outputs.tf` skeleton (bucket ARNs, role ARNs)
-- [ ] T006 Document remote state bootstrap commands in `scripts/bootstrap.sh` (one-time `aws s3 mb` + DynamoDB create-table)
+- [X] T001 Create repository directory structure per plan.md (`terraform/modules/s3/`, `terraform/modules/iam/`, `scripts/`)
+- [X] T002 Create `pyproject.toml` with uv project config and dev dependencies: `boto3`, `pytest`, `moto[s3]`
+- [X] T003 Create `.python-version` pinned to `3.12`
+- [X] T004 [P] Create `terraform/variables.tf` with top-level variables (`project_name`, `environment`, `bucket_suffix`, `aws_region`, `aws_account_id`)
+- [X] T005 [P] Create `terraform/outputs.tf` skeleton (bucket ARNs, role ARNs)
+- [X] T006 Document remote state bootstrap commands in `scripts/bootstrap.sh` (one-time `aws s3 mb` + DynamoDB create-table)
 
 ---
 
