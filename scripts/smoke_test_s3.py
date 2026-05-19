@@ -172,3 +172,65 @@ def test_glue_validation_policy_grants_get_on_glue_scripts():
     assert "glue_scripts_bucket_arn" in iam_main
     assert "ReadGlueScripts" in iam_main
     assert "s3:GetObject" in iam_main
+
+
+# -- IAM least-privilege audit (US4) ------------------------------------------
+
+
+def _iam_text() -> str:
+    from pathlib import Path
+    return Path("terraform/modules/iam/main.tf").read_text()
+
+
+def test_stepfunctions_role_trust_states():
+    text = _iam_text()
+    assert "states.amazonaws.com" in text
+    assert 'name               = "etl-stepfunctions-role"' in text
+
+
+def test_stepfunctions_policy_scopes_glue_to_etl_prefix():
+    text = _iam_text()
+    assert "job/etl-*" in text
+    assert "glue:StartJobRun" in text
+    assert "glue:GetJobRun" in text
+
+
+def test_no_wildcard_action_or_resource_in_iam():
+    """Constitution: no `*` action or `*` resource anywhere in IAM module."""
+    import re
+    text = _iam_text()
+    # Disallow `actions = ["*"]` and `resources = ["*"]` (any whitespace variant)
+    assert not re.search(r'actions\s*=\s*\[\s*"\*"\s*\]', text), "wildcard action found"
+    assert not re.search(r'resources\s*=\s*\[\s*"\*"\s*\]', text), "wildcard resource found"
+    # Also: no `"s3:*"`, `"glue:*"`, etc. as action strings
+    assert not re.search(r'"\w+:\*"', text), "service-wildcard action found"
+
+
+def test_no_hardcoded_credentials_in_repo():
+    """Scan .tf/.py/.toml for AWS credential patterns."""
+    import re
+    from pathlib import Path
+
+    patterns = [
+        re.compile(r"AKIA[0-9A-Z]{16}"),                  # AWS access key id
+        re.compile(r"aws_secret_access_key\s*=\s*['\"]"), # literal secret assign
+        re.compile(r"aws_access_key_id\s*=\s*['\"]"),     # literal key assign
+    ]
+    roots = ["terraform", "scripts"]
+    extra = [Path("pyproject.toml")]
+    files = []
+    for r in roots:
+        for ext in ("*.tf", "*.py", "*.toml", "*.json"):
+            files.extend(Path(r).rglob(ext))
+    files.extend(p for p in extra if p.exists())
+
+    offenders = []
+    for f in files:
+        try:
+            content = f.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for pat in patterns:
+            if pat.search(content):
+                offenders.append((str(f), pat.pattern))
+    assert offenders == [], f"hardcoded credentials found: {offenders}"
