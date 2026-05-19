@@ -67,8 +67,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Instantiate archive bucket in `terraform/main.tf` using `modules/s3` with `enable_versioning = false` and distinct `bucket_suffix`/name prefix (`archive-`)
-- [ ] T018 [US2] Extend moto smoke test in `scripts/smoke_test_s3.py` — assert archive bucket exists, SSE-S3 enabled, versioning disabled, all public access blocks true
+- [X] T017 [US2] Instantiate archive bucket in `terraform/main.tf` using `modules/s3` with `enable_versioning = false` and distinct `bucket_suffix`/name prefix (`archive-`)
+- [X] T018 [US2] Extend moto smoke test in `scripts/smoke_test_s3.py` — assert archive bucket exists, SSE-S3 enabled, versioning disabled, all public access blocks true
 
 **Checkpoint**: User Story 2 complete — archive bucket provisioned and independently verified
 
