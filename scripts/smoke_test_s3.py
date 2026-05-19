@@ -110,3 +110,34 @@ def test_raw_bucket_versioning_enabled(s3):
 
 def test_raw_bucket_public_access_blocked(s3):
     _assert_blocks_all_true(s3, RAW)
+
+
+# -- Archive bucket (US2) -----------------------------------------------------
+
+
+def test_archive_bucket_exists(s3):
+    assert any(b["Name"] == ARCHIVE for b in s3.list_buckets()["Buckets"])
+
+
+def test_archive_bucket_sse_s3(s3):
+    _assert_sse_s3(s3, ARCHIVE)
+
+
+def test_archive_bucket_versioning_disabled(s3):
+    v = s3.get_bucket_versioning(Bucket=ARCHIVE)
+    assert v.get("Status") != "Enabled"
+
+
+def test_archive_bucket_public_access_blocked(s3):
+    _assert_blocks_all_true(s3, ARCHIVE)
+
+
+def test_archive_bucket_lifecycle_glacier_and_expiry(s3):
+    cfg = s3.get_bucket_lifecycle_configuration(Bucket=ARCHIVE)
+    rules = cfg["Rules"]
+    assert len(rules) == 1
+    rule = rules[0]
+    assert rule["Status"] == "Enabled"
+    assert rule["Transitions"][0]["Days"] == 90
+    assert rule["Transitions"][0]["StorageClass"] == "GLACIER"
+    assert rule["Expiration"]["Days"] == 365
