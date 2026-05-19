@@ -31,10 +31,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T007 Create `terraform/backend.tf` with S3 backend config (`terraform-state-{account_id}`, `terraform-locks` DynamoDB table, `LockID` key)
-- [ ] T008 Create `terraform/modules/s3/variables.tf` with module inputs: `project_name`, `environment`, `bucket_suffix`, `enable_versioning`, `enable_lifecycle` (default false)
-- [ ] T009 Create `terraform/modules/s3/outputs.tf` with `bucket_arn` and `bucket_id` outputs
-- [ ] T010 Implement `terraform/modules/s3/main.tf` — `aws_s3_bucket`, `aws_s3_bucket_server_side_encryption_configuration` (AES256), `aws_s3_bucket_public_access_block` (all four block flags true), `aws_s3_bucket_versioning` (controlled by variable)
+- [X] T007 Create `terraform/backend.tf` with S3 backend config (`terraform-state-{account_id}`, `terraform-locks` DynamoDB table, `LockID` key)
+- [X] T008 Create `terraform/modules/s3/variables.tf` with module inputs: `project_name`, `environment`, `bucket_suffix`, `enable_versioning`, `enable_lifecycle` (default false)
+- [X] T009 Create `terraform/modules/s3/outputs.tf` with `bucket_arn` and `bucket_id` outputs
+- [X] T010 Implement `terraform/modules/s3/main.tf` — `aws_s3_bucket`, `aws_s3_bucket_server_side_encryption_configuration` (AES256), `aws_s3_bucket_public_access_block` (all four block flags true), `aws_s3_bucket_versioning` (controlled by variable)
 
 **Checkpoint**: S3 module complete — user story bucket instantiation can now proceed
 
