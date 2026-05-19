@@ -48,12 +48,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Instantiate raw-data bucket in `terraform/main.tf` using `modules/s3` with `enable_versioning = true` and `bucket_suffix` variable
-- [ ] T012 [US1] Create `terraform/modules/iam/variables.tf` with inputs: `raw_bucket_arn`, `archive_bucket_arn`, `glue_scripts_bucket_arn`, `aws_region`, `aws_account_id`
-- [ ] T013 [US1] Create `terraform/modules/iam/outputs.tf` with `glue_validation_role_arn` and `stepfunctions_role_arn`
-- [ ] T014 [US1] Implement `etl-glue-validation-role` in `terraform/modules/iam/main.tf` — trust `glue.amazonaws.com`; managed policy `etl-glue-validation-policy` with exact ARN `s3:GetObject`/`s3:ListBucket` on raw-data and glue-scripts buckets, plus scoped CloudWatch Logs permissions (`/aws-glue/jobs/*`)
-- [ ] T015 [US1] Instantiate IAM module in `terraform/main.tf` passing raw-data, archive, and glue-scripts bucket ARNs from module outputs (archive ARN wiring soft-depends on T017 — sequence T017 before T015 or use a null placeholder until archive bucket exists)
-- [ ] T016 [US1] Write moto smoke test in `scripts/smoke_test_s3.py` — assert raw-data bucket exists, SSE-S3 enabled, versioning enabled, all public access blocks true
+- [X] T011 [US1] Instantiate raw-data bucket in `terraform/main.tf` using `modules/s3` with `enable_versioning = true` and `bucket_suffix` variable
+- [X] T012 [US1] Create `terraform/modules/iam/variables.tf` with inputs: `raw_bucket_arn`, `archive_bucket_arn`, `glue_scripts_bucket_arn`, `aws_region`, `aws_account_id`
+- [X] T013 [US1] Create `terraform/modules/iam/outputs.tf` with `glue_validation_role_arn` and `stepfunctions_role_arn`
+- [X] T014 [US1] Implement `etl-glue-validation-role` in `terraform/modules/iam/main.tf` — trust `glue.amazonaws.com`; managed policy `etl-glue-validation-policy` with exact ARN `s3:GetObject`/`s3:ListBucket` on raw-data and glue-scripts buckets, plus scoped CloudWatch Logs permissions (`/aws-glue/jobs/*`)
+- [X] T015 [US1] Instantiate IAM module in `terraform/main.tf` passing raw-data, archive, and glue-scripts bucket ARNs from module outputs (archive ARN wiring soft-depends on T017 — sequence T017 before T015 or use a null placeholder until archive bucket exists)
+- [X] T016 [US1] Write moto smoke test in `scripts/smoke_test_s3.py` — assert raw-data bucket exists, SSE-S3 enabled, versioning enabled, all public access blocks true
 
 **Checkpoint**: User Story 1 fully functional — raw bucket provisioned, validator role created, smoke test passes
 
