@@ -82,9 +82,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Instantiate glue-scripts bucket in `terraform/main.tf` using `modules/s3` with `enable_versioning = false` and name prefix `glue-scripts-`
-- [ ] T020 [US3] Verify `etl-glue-validation-policy` in `terraform/modules/iam/main.tf` already includes `s3:GetObject`/`s3:ListBucket` on `glue_scripts_bucket_arn` (added in T014 — confirm reference is wired correctly via module output)
-- [ ] T021 [US3] Extend moto smoke test in `scripts/smoke_test_s3.py` — assert glue-scripts bucket exists, SSE-S3 enabled, versioning disabled, all public access blocks true
+- [X] T019 [US3] Instantiate glue-scripts bucket in `terraform/main.tf` using `modules/s3` with `enable_versioning = false` and name prefix `glue-scripts-`
+- [X] T020 [US3] Verify `etl-glue-validation-policy` in `terraform/modules/iam/main.tf` already includes `s3:GetObject`/`s3:ListBucket` on `glue_scripts_bucket_arn` (added in T014 — confirm reference is wired correctly via module output)
+- [X] T021 [US3] Extend moto smoke test in `scripts/smoke_test_s3.py` — assert glue-scripts bucket exists, SSE-S3 enabled, versioning disabled, all public access blocks true
 
 **Checkpoint**: User Story 3 complete — all three buckets provisioned and verified
 
