@@ -141,3 +141,34 @@ def test_archive_bucket_lifecycle_glacier_and_expiry(s3):
     assert rule["Transitions"][0]["Days"] == 90
     assert rule["Transitions"][0]["StorageClass"] == "GLACIER"
     assert rule["Expiration"]["Days"] == 365
+
+
+# -- Glue scripts bucket (US3) ------------------------------------------------
+
+
+def test_glue_scripts_bucket_exists(s3):
+    assert any(b["Name"] == GLUE_SCRIPTS for b in s3.list_buckets()["Buckets"])
+
+
+def test_glue_scripts_bucket_sse_s3(s3):
+    _assert_sse_s3(s3, GLUE_SCRIPTS)
+
+
+def test_glue_scripts_bucket_versioning_disabled(s3):
+    v = s3.get_bucket_versioning(Bucket=GLUE_SCRIPTS)
+    assert v.get("Status") != "Enabled"
+
+
+def test_glue_scripts_bucket_public_access_blocked(s3):
+    _assert_blocks_all_true(s3, GLUE_SCRIPTS)
+
+
+def test_glue_validation_policy_grants_get_on_glue_scripts():
+    """Static check: the IAM policy doc grants s3:GetObject on glue-scripts."""
+    from pathlib import Path
+
+    iam_main = Path("terraform/modules/iam/main.tf").read_text()
+    # Confirm a statement uses var.glue_scripts_bucket_arn with GetObject
+    assert "glue_scripts_bucket_arn" in iam_main
+    assert "ReadGlueScripts" in iam_main
+    assert "s3:GetObject" in iam_main
