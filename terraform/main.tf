@@ -43,6 +43,25 @@ module "glue_scripts" {
 }
 
 ###############################################################################
+# Glue validation job (Phase 2)
+###############################################################################
+module "glue_validate" {
+  source = "./modules/glue"
+
+  job_name        = "etl-validate-files"
+  script_location = "s3://${module.glue_scripts.bucket_id}/validate_files.py"
+  role_arn        = module.iam.glue_validation_role_arn
+  timeout         = 5
+  max_retries     = 0
+  default_arguments = {
+    "--raw_bucket"        = ""
+    "--listening_prefix"  = "listening-activity/"
+    "--songs_prefix"      = "song-catalog/"
+    "--users_prefix"      = "user-profiles/"
+  }
+}
+
+###############################################################################
 # IAM roles (US1 + US4): glue validation + Step Functions execution
 ###############################################################################
 module "iam" {
