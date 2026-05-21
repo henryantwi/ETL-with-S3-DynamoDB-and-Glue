@@ -54,10 +54,10 @@ module "glue_validate" {
   timeout         = 5
   max_retries     = 0
   default_arguments = {
-    "--raw_bucket"        = ""
-    "--listening_prefix"  = "listening-activity/"
-    "--songs_prefix"      = "song-catalog/"
-    "--users_prefix"      = "user-profiles/"
+    "--raw_bucket"       = ""
+    "--listening_prefix" = "listening-activity/"
+    "--songs_prefix"     = "song-catalog/"
+    "--users_prefix"     = "user-profiles/"
   }
 }
 

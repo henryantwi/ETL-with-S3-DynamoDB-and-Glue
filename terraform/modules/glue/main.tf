@@ -1,8 +1,8 @@
 resource "aws_glue_job" "this" {
-  name         = var.job_name
-  role_arn     = var.role_arn
-  timeout      = var.timeout
-  max_retries  = var.max_retries
+  name        = var.job_name
+  role_arn    = var.role_arn
+  timeout     = var.timeout
+  max_retries = var.max_retries
 
   command {
     name            = "pythonshell"
