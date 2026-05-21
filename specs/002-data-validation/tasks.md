@@ -54,10 +54,10 @@ grouped so setup and foundational work unlock all three independently-testable s
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Write moto test `test_all_valid_files_pass` in `glue_jobs/validation/test_validate_files.py` — mock S3 bucket, upload three valid CSVs to correct prefixes, call `validate_all`, assert `len(failures) == 0`
-- [ ] T010 [US1] Write moto test `test_valid_listening_activity_accepted` — assert `ValidationResult.status == "PASS"` for listening-activity file with `user_id,track_id,listened_at` header
-- [ ] T011 [US1] Write moto test `test_valid_song_catalog_accepted` — assert pass for song-catalog file with `track_id,song_name,artist_name,genre,duration` header
-- [ ] T012 [US1] Write moto test `test_valid_user_profiles_accepted` — assert pass for user-profiles file with `user_id,username,country` header
+- [X] T009 [US1] Write moto test `test_all_valid_files_pass` in `glue_jobs/validation/test_validate_files.py` — mock S3 bucket, upload three valid CSVs to correct prefixes, call `validate_all`, assert `len(failures) == 0`
+- [X] T010 [US1] Write moto test `test_valid_listening_activity_accepted` — assert `ValidationResult.status == "PASS"` for listening-activity file with `user_id,track_id,listened_at` header
+- [X] T011 [US1] Write moto test `test_valid_song_catalog_accepted` — assert pass for song-catalog file with `track_id,song_name,artist_name,genre,duration` header
+- [X] T012 [US1] Write moto test `test_valid_user_profiles_accepted` — assert pass for user-profiles file with `user_id,username,country` header
 
 **Checkpoint**: User Story 1 fully verified — happy path confirmed
 
@@ -71,10 +71,10 @@ grouped so setup and foundational work unlock all three independently-testable s
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Write moto test `test_missing_field_in_listening_activity` — upload CSV with `user_id,listened_at` (missing `track_id`), assert `ValidationResult.missing_fields == ["track_id"]`, `failure_reason == "field-error"`
-- [ ] T014 [US2] Write moto test `test_multiple_missing_fields_in_song_catalog` — upload CSV without `artist_name` and `genre`, assert both appear in `missing_fields`
-- [ ] T015 [US2] Write moto test `test_one_failure_blocks_all_files` — upload one valid + one invalid file, call `validate_all`, assert exception raised and valid files NOT advanced (i.e., function raises, not silently continues)
-- [ ] T016 [US2] Write moto test `test_multiple_file_failures_collected_together` — upload two invalid CSVs (different missing fields), assert single exception references both failures with all missing fields
+- [X] T013 [US2] Write moto test `test_missing_field_in_listening_activity` — upload CSV with `user_id,listened_at` (missing `track_id`), assert `ValidationResult.missing_fields == ["track_id"]`, `failure_reason == "field-error"`
+- [X] T014 [US2] Write moto test `test_multiple_missing_fields_in_song_catalog` — upload CSV without `artist_name` and `genre`, assert both appear in `missing_fields`
+- [X] T015 [US2] Write moto test `test_one_failure_blocks_all_files` — upload one valid + one invalid file, call `validate_all`, assert exception raised and valid files NOT advanced (i.e., function raises, not silently continues)
+- [X] T016 [US2] Write moto test `test_multiple_file_failures_collected_together` — upload two invalid CSVs (different missing fields), assert single exception references both failures with all missing fields
 
 **Checkpoint**: User Story 2 fully verified — failure collection and halt confirmed
 
@@ -88,10 +88,10 @@ grouped so setup and foundational work unlock all three independently-testable s
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Write moto test `test_missing_file_rejected` — do NOT upload object at expected prefix, call `validate_all`, assert `failure_reason == "missing"`
-- [ ] T018 [US3] Write moto test `test_empty_file_rejected` — upload zero-byte object at prefix, assert `failure_reason == "empty"`
-- [ ] T019 [US3] Write moto test `test_unreadable_file_rejected` — upload object with non-UTF-8 binary bytes at prefix, assert `failure_reason == "unreadable"`
-- [ ] T020 [US3] Write moto test `test_infrastructure_failure_halts_pipeline` — simulate S3 client raising `ClientError` (e.g., permissions), assert exception propagates and is logged before re-raise
+- [X] T017 [US3] Write moto test `test_missing_file_rejected` — do NOT upload object at expected prefix, call `validate_all`, assert `failure_reason == "missing"`
+- [X] T018 [US3] Write moto test `test_empty_file_rejected` — upload zero-byte object at prefix, assert `failure_reason == "empty"`
+- [X] T019 [US3] Write moto test `test_unreadable_file_rejected` — upload object with non-UTF-8 binary bytes at prefix, assert `failure_reason == "unreadable"`
+- [X] T020 [US3] Write moto test `test_infrastructure_failure_halts_pipeline` — simulate S3 client raising `ClientError` (e.g., permissions), assert exception propagates and is logged before re-raise
 
 **Checkpoint**: User Story 3 fully verified — structural failure modes all handled
 
