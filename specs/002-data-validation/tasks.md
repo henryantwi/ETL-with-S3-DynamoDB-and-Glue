@@ -101,13 +101,13 @@ grouped so setup and foundational work unlock all three independently-testable s
 
 **Purpose**: Terraform wiring validation, security scan, credential audit, `terraform fmt`
 
-- [ ] T021 [P] Run `terraform validate` — confirm Glue module + instantiation in `main.tf` have no errors
-- [ ] T022 [P] Run `terraform fmt -check -recursive` — confirm all `.tf` files clean
-- [ ] T023 [P] Run `uv run pytest glue_jobs/validation/ -v` — confirm all tests pass (moto, no real AWS)
-- [ ] T024 Scan `glue_jobs/`, `terraform/`, `pyproject.toml` for hardcoded credential patterns (`AKIA...`, `aws_secret_access_key`) — confirm zero findings
-- [ ] T025 Verify `validate_files.py` never imports pandas or any non-stdlib/boto3 library — stdlib `csv` module only
-- [ ] T026 [P] Update `terraform/outputs.tf` to expose `glue_validation_job_name` output from module
-- [ ] T027 Add `glue_jobs/` and `.pytest_cache/` to `.gitignore` pyc/cache patterns (verify, append if missing)
+- [X] T021 [P] Run `terraform validate` — confirm Glue module + instantiation in `main.tf` have no errors
+- [X] T022 [P] Run `terraform fmt -check -recursive` — confirm all `.tf` files clean
+- [X] T023 [P] Run `uv run pytest glue_jobs/validation/ -v` — confirm all tests pass (moto, no real AWS)
+- [X] T024 Scan `glue_jobs/`, `terraform/`, `pyproject.toml` for hardcoded credential patterns (`AKIA...`, `aws_secret_access_key`) — confirm zero findings
+- [X] T025 Verify `validate_files.py` never imports pandas or any non-stdlib/boto3 library — stdlib `csv` module only
+- [X] T026 [P] Update `terraform/outputs.tf` to expose `glue_validation_job_name` output from module
+- [X] T027 Add `glue_jobs/` and `.pytest_cache/` to `.gitignore` pyc/cache patterns (verify, append if missing)
 
 ---
 
