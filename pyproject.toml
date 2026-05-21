@@ -1,7 +1,7 @@
 [project]
-name = "secure-storage-foundation"
-version = "0.1.0"
-description = "Phase 1 ETL infrastructure smoke tests"
+name = "music-streaming-etl"
+version = "0.2.0"
+description = "Music streaming ETL pipeline — S3, Glue, Step Functions"
 requires-python = ">=3.12"
 dependencies = []
 
@@ -13,5 +13,5 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["scripts"]
+testpaths = ["scripts", "glue_jobs"]
 python_files = ["smoke_test_*.py", "test_*.py"]
