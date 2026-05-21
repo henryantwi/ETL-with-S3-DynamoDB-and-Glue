@@ -116,11 +116,18 @@ def read_csv_header(s3_client, bucket: str, key: str) -> list[str]:
     """Stream first 4096 bytes of an S3 object and return parsed CSV header row.
 
     Raises:
-        KeyError: if the object does not exist (caller maps to 'missing')
-        UnicodeDecodeError: if bytes are not valid UTF-8 (caller maps to 'unreadable')
-        ValueError: if the object is empty / has no header row
+        ClientError with code 'InvalidRange': object is empty (zero bytes)
+        UnicodeDecodeError: bytes are not valid UTF-8
+        ValueError("empty"): header row present but blank after strip
     """
-    resp = s3_client.get_object(Bucket=bucket, Key=key, Range="bytes=0-4095")
+    try:
+        resp = s3_client.get_object(Bucket=bucket, Key=key, Range="bytes=0-4095")
+    except ClientError as exc:
+        code = exc.response["Error"]["Code"]
+        if code in ("InvalidRange", "416"):
+            # Zero-byte object — Range request not satisfiable
+            raise ValueError("empty") from exc
+        raise
     raw = resp["Body"].read()
     if not raw.strip():
         raise ValueError("empty")
