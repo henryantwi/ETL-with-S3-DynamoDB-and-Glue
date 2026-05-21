@@ -30,9 +30,9 @@ grouped so setup and foundational work unlock all three independently-testable s
 
 **⚠️ CRITICAL**: No user story test can pass until this phase is complete
 
-- [ ] T005 Implement `terraform/modules/glue/main.tf` — `aws_glue_job` resource: `GlueVersion = "3.0"`, `Command.Name = "pythonshell"`, `Command.PythonVersion = "3"`, `NumberOfWorkers` not set (Python Shell uses `MaxCapacity = 0.0625`), `Timeout` and `MaxRetries` from variables, `DefaultArguments` from variable map
-- [ ] T006 Instantiate Glue module in `terraform/main.tf` — pass `script_location = "s3://${module.glue_scripts.bucket_id}/validate_files.py"`, `role_arn = module.iam.glue_validation_role_arn`, `job_name = "etl-validate-files"`, `timeout = 5`, `max_retries = 0`
-- [ ] T007 Implement core validation library in `glue_jobs/validation/validate_files.py`:
+- [X] T005 Implement `terraform/modules/glue/main.tf` — `aws_glue_job` resource: `GlueVersion = "3.0"`, `Command.Name = "pythonshell"`, `Command.PythonVersion = "3"`, `NumberOfWorkers` not set (Python Shell uses `MaxCapacity = 0.0625`), `Timeout` and `MaxRetries` from variables, `DefaultArguments` from variable map
+- [X] T006 Instantiate Glue module in `terraform/main.tf` — pass `script_location = "s3://${module.glue_scripts.bucket_id}/validate_files.py"`, `role_arn = module.iam.glue_validation_role_arn`, `job_name = "etl-validate-files"`, `timeout = 5`, `max_retries = 0`
+- [X] T007 Implement core validation library in `glue_jobs/validation/validate_files.py`:
   - `FileSchema` dataclass: `prefix`, `file_type`, `required_fields: frozenset`
   - `ValidationResult` dataclass: `file_key`, `file_type`, `status`, `missing_fields`, `failure_reason`
   - `SCHEMAS` constant: dict mapping prefix → `FileSchema` for all three file types (listening-activity, song-catalog, user-profiles)
@@ -40,7 +40,7 @@ grouped so setup and foundational work unlock all three independently-testable s
   - `validate_file(s3_client, bucket, prefix) -> ValidationResult` — lists objects at prefix, picks first CSV, calls `read_csv_header`, checks required fields, returns result
   - `validate_all(s3_client, bucket, args) -> list[ValidationResult]` — iterates all three schemas unconditionally, collects results, returns full list (does NOT raise here)
   - `main()` — calls `getResolvedOptions`, builds s3 client, calls `validate_all`, logs each result as JSON, raises `ValueError` with all failure details if any failures exist
-- [ ] T008 Add structured JSON logger helper in `glue_jobs/validation/validate_files.py` — `log_result(logger, result)` emits one JSON line per result with keys: `level`, `job`, `file_key`, `file_type`, `status`, `missing_fields`, `failure_reason`
+- [X] T008 Add structured JSON logger helper in `glue_jobs/validation/validate_files.py` — `log_result(logger, result)` emits one JSON line per result with keys: `level`, `job`, `file_key`, `file_type`, `status`, `missing_fields`, `failure_reason`
 
 **Checkpoint**: Core library complete — all three user story tests can now be written and run
 
