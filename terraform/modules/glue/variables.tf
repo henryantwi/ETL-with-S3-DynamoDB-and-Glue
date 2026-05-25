@@ -30,3 +30,21 @@ variable "default_arguments" {
   description = "Default Glue job arguments (overridable at StartJobRun)"
   default     = {}
 }
+
+variable "job_type" {
+  type        = string
+  description = "Glue job type: pythonshell or glueetl"
+  default     = "pythonshell"
+}
+
+variable "worker_type" {
+  type        = string
+  description = "Glue worker type (glueetl only): G.1X, G.2X, etc."
+  default     = "G.1X"
+}
+
+variable "num_workers" {
+  type        = number
+  description = "Number of Glue workers (glueetl only)"
+  default     = 2
+}

@@ -37,3 +37,13 @@ output "glue_scripts_bucket_id" {
   description = "Name of glue-scripts bucket"
   value       = module.glue_scripts.bucket_id
 }
+
+output "processed_bucket_id" {
+  description = "Name of processed-data bucket"
+  value       = module.processed_data.bucket_id
+}
+
+output "processed_bucket_arn" {
+  description = "ARN of processed-data bucket"
+  value       = module.processed_data.bucket_arn
+}

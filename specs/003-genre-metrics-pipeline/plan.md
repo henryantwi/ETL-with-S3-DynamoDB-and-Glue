@@ -90,4 +90,6 @@ terraform/
 
 ## Complexity Tracking
 
-N/A — no constitution violations.
+| Violation | Resource | Justification |
+|-----------|----------|---------------|
+| Constitution II: wildcard resource | `cloudwatch:PutMetricData` in `etl-glue-transform-role` policy | AWS does not support resource-level constraints for `cloudwatch:PutMetricData` — IAM does not recognize CloudWatch metric ARNs as constrainable resources. `Resource: "*"` is required by AWS; this is an AWS service limitation, not a design choice. Blast radius is bounded: the action only permits emitting custom metrics, not reading, deleting, or modifying any data resource. Accepted per AWS IAM documentation for CloudWatch. |

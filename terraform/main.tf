@@ -62,7 +62,21 @@ module "glue_validate" {
 }
 
 ###############################################################################
-# IAM roles (US1 + US4): glue validation + Step Functions execution
+# processed-data bucket (Phase 3: genre metrics output)
+###############################################################################
+module "processed_data" {
+  source = "./modules/s3"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  bucket_suffix     = var.bucket_suffix
+  bucket_prefix     = "processed-data"
+  enable_versioning = false
+  enable_lifecycle  = false
+}
+
+###############################################################################
+# IAM roles (US1 + US4): glue validation + Step Functions execution + transform
 ###############################################################################
 module "iam" {
   source = "./modules/iam"
@@ -70,6 +84,57 @@ module "iam" {
   raw_bucket_arn          = module.raw_data.bucket_arn
   archive_bucket_arn      = module.archive.bucket_arn
   glue_scripts_bucket_arn = module.glue_scripts.bucket_arn
+  processed_bucket_arn    = module.processed_data.bucket_arn
   aws_region              = var.aws_region
   aws_account_id          = var.aws_account_id
+}
+
+###############################################################################
+# Glue genre-metrics job (Phase 3: PySpark G.1X × 2)
+###############################################################################
+resource "aws_s3_object" "genre_metrics_script" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "genre_metrics/pipeline.py"
+  source = "${path.root}/../glue_jobs/genre_metrics/pipeline.py"
+  etag   = filemd5("${path.root}/../glue_jobs/genre_metrics/pipeline.py")
+}
+
+module "glue_genre_metrics" {
+  source = "./modules/glue"
+
+  job_name        = "etl-genre-metrics"
+  script_location = "s3://${module.glue_scripts.bucket_id}/genre_metrics/pipeline.py"
+  role_arn        = module.iam.glue_transform_role_arn
+  job_type        = "glueetl"
+  worker_type     = "G.1X"
+  num_workers     = 2
+  timeout         = 30
+  max_retries     = 0
+  default_arguments = {
+    "--raw_bucket"        = ""
+    "--processed_bucket"  = ""
+    "--listening_prefix"  = "listening-activity/"
+    "--songs_prefix"      = "song-catalog/"
+    "--run_date"          = ""
+  }
+}
+
+###############################################################################
+# CloudWatch alarm: etl-genre-metrics job failures
+###############################################################################
+resource "aws_cloudwatch_metric_alarm" "genre_metrics_failures" {
+  alarm_name          = "etl-genre-metrics-failures"
+  namespace           = "Glue"
+  metric_name         = "glue.driver.aggregate.numFailedTasks"
+  statistic           = "Sum"
+  period              = 300
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+
+  dimensions = {
+    JobName = "etl-genre-metrics"
+  }
+
+  alarm_actions = [var.sns_alarm_topic_arn]
 }
