@@ -14,7 +14,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-REGION = "ap-southeast-2"
+REGION = "eu-west-1"
 RAW = "raw-data-etl-dev-abc123"
 ARCHIVE = "archive-etl-dev-abc123"
 GLUE_SCRIPTS = "glue-scripts-etl-dev-abc123"

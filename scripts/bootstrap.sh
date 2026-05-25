@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-REGION="${AWS_REGION:-ap-southeast-2}"
+REGION="${AWS_REGION:-eu-west-1}"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 STATE_BUCKET="terraform-state-${ACCOUNT_ID}"
 LOCK_TABLE="terraform-locks"
