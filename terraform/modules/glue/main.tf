@@ -4,14 +4,29 @@ resource "aws_glue_job" "this" {
   timeout     = var.timeout
   max_retries = var.max_retries
 
-  command {
-    name            = "pythonshell"
-    python_version  = "3"
-    script_location = var.script_location
+  dynamic "command" {
+    for_each = var.job_type == "glueetl" ? [] : [1]
+    content {
+      name            = "pythonshell"
+      python_version  = "3"
+      script_location = var.script_location
+    }
   }
 
-  # Python Shell uses MaxCapacity instead of NumberOfWorkers
-  max_capacity = 0.0625
+  dynamic "command" {
+    for_each = var.job_type == "glueetl" ? [1] : []
+    content {
+      name            = "glueetl"
+      python_version  = "3"
+      script_location = var.script_location
+    }
+  }
+
+  # Python Shell uses MaxCapacity; glueetl uses NumberOfWorkers + WorkerType
+  max_capacity     = var.job_type == "glueetl" ? null : 0.0625
+  number_of_workers = var.job_type == "glueetl" ? var.num_workers : null
+  worker_type      = var.job_type == "glueetl" ? var.worker_type : null
+  glue_version     = var.job_type == "glueetl" ? "4.0" : null
 
   default_arguments = merge(
     {

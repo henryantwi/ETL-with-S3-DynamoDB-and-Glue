@@ -13,5 +13,5 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["scripts", "glue_jobs"]
+testpaths = ["scripts", "glue_jobs", "tests"]
 python_files = ["smoke_test_*.py", "test_*.py"]

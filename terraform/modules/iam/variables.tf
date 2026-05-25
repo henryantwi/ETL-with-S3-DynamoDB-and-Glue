@@ -22,3 +22,8 @@ variable "aws_account_id" {
   type        = string
   description = "AWS account ID"
 }
+
+variable "processed_bucket_arn" {
+  type        = string
+  description = "ARN of processed-data bucket"
+}

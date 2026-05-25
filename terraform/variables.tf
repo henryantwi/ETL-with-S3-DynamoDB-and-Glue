@@ -25,3 +25,8 @@ variable "aws_account_id" {
   type        = string
   description = "AWS account ID for ARN construction"
 }
+
+variable "sns_alarm_topic_arn" {
+  type        = string
+  description = "SNS topic ARN for CloudWatch alarm notifications"
+}

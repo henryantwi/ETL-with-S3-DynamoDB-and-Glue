@@ -166,3 +166,105 @@ resource "aws_iam_role_policy_attachment" "stepfunctions" {
   role       = aws_iam_role.stepfunctions.name
   policy_arn = aws_iam_policy.stepfunctions.arn
 }
+
+###############################################################################
+# etl-glue-transform-role
+###############################################################################
+
+resource "aws_iam_role" "glue_transform" {
+  name               = "etl-glue-transform-role"
+  assume_role_policy = data.aws_iam_policy_document.glue_trust.json
+}
+
+data "aws_iam_policy_document" "glue_transform" {
+  statement {
+    sid    = "ReadRawData"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = ["${var.raw_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ListRawData"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+    ]
+    resources = [var.raw_bucket_arn]
+  }
+
+  statement {
+    sid    = "ReadWriteProcessedData"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = ["${var.processed_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ListProcessedData"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+    ]
+    resources = [var.processed_bucket_arn]
+  }
+
+  statement {
+    sid    = "ReadGlueScripts"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = ["${var.glue_scripts_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ListGlueScripts"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+    ]
+    resources = [var.glue_scripts_bucket_arn]
+  }
+
+  statement {
+    sid    = "GlueJobLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-genre-metrics",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-genre-metrics:*",
+    ]
+  }
+
+  # AWS does not support resource-level constraints for cloudwatch:PutMetricData
+  statement {
+    sid    = "CloudWatchMetrics"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "glue_transform" {
+  name        = "etl-glue-transform-policy"
+  description = "Least-priv: read raw + read/write processed + CloudWatch metrics for etl-genre-metrics"
+  policy      = data.aws_iam_policy_document.glue_transform.json
+}
+
+resource "aws_iam_role_policy_attachment" "glue_transform" {
+  role       = aws_iam_role.glue_transform.name
+  policy_arn = aws_iam_policy.glue_transform.arn
+}
