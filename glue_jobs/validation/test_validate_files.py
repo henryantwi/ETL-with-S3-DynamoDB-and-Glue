@@ -14,7 +14,7 @@ from glue_jobs.validation.validate_files import (
     validate_file,
 )
 
-REGION = "ap-southeast-2"
+REGION = "eu-west-1"
 BUCKET = "raw-data-test"
 
 LISTENING_KEY = "listening-activity/data.csv"

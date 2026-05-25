@@ -18,7 +18,7 @@ variable "bucket_suffix" {
 variable "aws_region" {
   type        = string
   description = "AWS region for all resources"
-  default     = "ap-southeast-2"
+  default     = "eu-west-1"
 }
 
 variable "aws_account_id" {

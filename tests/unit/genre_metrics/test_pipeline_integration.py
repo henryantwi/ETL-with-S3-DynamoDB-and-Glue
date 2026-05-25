@@ -47,7 +47,7 @@ TS = datetime.datetime(2026, 5, 25, 12, 0, 0)
 def _create_bucket(s3, name):
     s3.create_bucket(
         Bucket=name,
-        CreateBucketConfiguration={"LocationConstraint": "ap-southeast-2"},
+        CreateBucketConfiguration={"LocationConstraint": "eu-west-1"},
     )
 
 
@@ -94,7 +94,7 @@ def _empty_catalog_df(spark):
 
 @mock_aws
 def test_staging_write_then_promote():
-    s3 = boto3.client("s3", region_name="ap-southeast-2")
+    s3 = boto3.client("s3", region_name="eu-west-1")
     _create_bucket(s3, BUCKET)
     _seed_staging(s3, BUCKET, RUN_DATE)
 
@@ -109,7 +109,7 @@ def test_staging_write_then_promote():
 
 @mock_aws
 def test_failed_promote_leaves_no_output():
-    s3 = boto3.client("s3", region_name="ap-southeast-2")
+    s3 = boto3.client("s3", region_name="eu-west-1")
     _create_bucket(s3, BUCKET)
     _seed_staging(s3, BUCKET, RUN_DATE)
 
@@ -123,7 +123,7 @@ def test_failed_promote_leaves_no_output():
 
 @mock_aws
 def test_staging_path_uses_run_id():
-    s3 = boto3.client("s3", region_name="ap-southeast-2")
+    s3 = boto3.client("s3", region_name="eu-west-1")
     _create_bucket(s3, BUCKET)
     _seed_staging(s3, BUCKET, RUN_DATE)
 
@@ -137,7 +137,7 @@ def test_staging_path_uses_run_id():
 
 @mock_aws
 def test_idempotent_second_run():
-    s3 = boto3.client("s3", region_name="ap-southeast-2")
+    s3 = boto3.client("s3", region_name="eu-west-1")
     _create_bucket(s3, BUCKET)
 
     _seed_staging(s3, BUCKET, RUN_DATE, n_objects=3)
