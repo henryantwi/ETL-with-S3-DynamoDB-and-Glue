@@ -12,3 +12,13 @@ output "glue_transform_role_arn" {
   description = "ARN of etl-glue-transform-role"
   value       = aws_iam_role.glue_transform.arn
 }
+
+output "glue_writer_role_arn" {
+  description = "ARN of etl-glue-writer-role"
+  value       = aws_iam_role.glue_writer.arn
+}
+
+output "metrics_reader_policy_arn" {
+  description = "ARN of metrics-reader-policy (attach to consumer IAM roles)"
+  value       = aws_iam_policy.metrics_reader.arn
+}

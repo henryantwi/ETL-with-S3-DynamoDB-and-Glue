@@ -4,7 +4,7 @@ import time
 import boto3
 from pyspark.sql import SparkSession, DataFrame
 
-from glue_jobs.genre_metrics.transformations import (
+from transformations import (
     join_activity_to_catalog,
     compute_genre_metrics,
     compute_top_songs,
@@ -126,8 +126,8 @@ def run_pipeline(spark: SparkSession, args: dict) -> None:
     start_ts = time.time()
 
     t0 = time.time()
-    activity_df = spark.read.parquet(f"s3://{raw_bucket}/{listening_prefix}")
-    catalog_df = spark.read.parquet(f"s3://{raw_bucket}/{songs_prefix}")
+    activity_df = spark.read.option("header", "true").option("inferSchema", "true").csv(f"s3://{raw_bucket}/{listening_prefix}")
+    catalog_df = spark.read.option("header", "true").option("inferSchema", "true").csv(f"s3://{raw_bucket}/{songs_prefix}")
     records_read = activity_df.count()
     _log({"stage": "read_complete", "records_read": records_read, "elapsed_s": round(time.time() - t0, 3)})
 

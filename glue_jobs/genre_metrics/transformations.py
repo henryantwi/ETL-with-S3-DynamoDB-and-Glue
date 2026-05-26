@@ -5,9 +5,16 @@ from pyspark.sql import Window
 
 def join_activity_to_catalog(activity_df: DataFrame, catalog_df: DataFrame) -> DataFrame:
     enriched = activity_df.join(catalog_df, on="track_id", how="inner")
-    enriched = enriched.withColumn("date", F.col("listened_at").cast("date").cast("string"))
-    enriched = enriched.withColumn("duration_seconds", F.coalesce(F.col("duration_seconds"), F.lit(0.0)))
-    return enriched.select("user_id", "track_id", "date", "genre", "song_name", "duration_seconds")
+    enriched = enriched.withColumn("date", F.col("listen_time").cast("date").cast("string"))
+    # duration_ms (int) → duration_seconds (float)
+    enriched = enriched.withColumn(
+        "duration_seconds",
+        F.coalesce(F.col("duration_ms").cast("double") / 1000.0, F.lit(0.0))
+    )
+    # actual song name column is track_name
+    return enriched.select("user_id", "track_id", "date", "track_genre", "track_name", "duration_seconds") \
+                   .withColumnRenamed("track_genre", "genre") \
+                   .withColumnRenamed("track_name", "song_name")
 
 
 def compute_genre_metrics(enriched_df: DataFrame) -> DataFrame:
