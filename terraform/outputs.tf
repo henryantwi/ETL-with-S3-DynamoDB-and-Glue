@@ -47,3 +47,13 @@ output "processed_bucket_arn" {
   description = "ARN of processed-data bucket"
   value       = module.processed_data.bucket_arn
 }
+
+output "music_kpis_table_arn" {
+  description = "ARN of MusicKPIs DynamoDB table"
+  value       = module.dynamodb.table_arn
+}
+
+output "music_kpis_table_name" {
+  description = "Name of MusicKPIs DynamoDB table"
+  value       = module.dynamodb.table_name
+}

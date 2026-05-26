@@ -268,3 +268,109 @@ resource "aws_iam_role_policy_attachment" "glue_transform" {
   role       = aws_iam_role.glue_transform.name
   policy_arn = aws_iam_policy.glue_transform.arn
 }
+
+###############################################################################
+# etl-glue-writer-role  (Phase 4: DynamoDB metrics writer)
+###############################################################################
+
+resource "aws_iam_role" "glue_writer" {
+  name               = "etl-glue-writer-role"
+  assume_role_policy = data.aws_iam_policy_document.glue_trust.json
+}
+
+data "aws_iam_policy_document" "glue_writer" {
+  statement {
+    sid    = "DynamoDBWrite"
+    effect = "Allow"
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:DescribeTable",
+    ]
+    resources = [var.dynamodb_table_arn]
+  }
+
+  statement {
+    sid    = "ReadProcessedData"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = ["${var.processed_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ListProcessedData"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+    ]
+    resources = [var.processed_bucket_arn]
+  }
+
+  statement {
+    sid    = "ReadGlueScripts"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = ["${var.glue_scripts_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "GlueJobLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-metrics-writer",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-metrics-writer:*",
+    ]
+  }
+
+  # AWS does not support resource-level constraints for cloudwatch:PutMetricData
+  statement {
+    sid    = "CloudWatchMetrics"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "glue_writer" {
+  name        = "etl-glue-writer-policy"
+  description = "Least-priv: DynamoDB write MusicKPIs + read processed bucket + CloudWatch metrics"
+  policy      = data.aws_iam_policy_document.glue_writer.json
+}
+
+resource "aws_iam_role_policy_attachment" "glue_writer" {
+  role       = aws_iam_role.glue_writer.name
+  policy_arn = aws_iam_policy.glue_writer.arn
+}
+
+###############################################################################
+# metrics-reader-policy  (attached to named consumer roles by operators)
+###############################################################################
+
+data "aws_iam_policy_document" "metrics_reader" {
+  statement {
+    sid    = "DynamoDBRead"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+    ]
+    resources = [var.dynamodb_table_arn]
+  }
+}
+
+resource "aws_iam_policy" "metrics_reader" {
+  name        = "metrics-reader-policy"
+  description = "Least-priv read-only access to MusicKPIs table (GetItem, Query only — no Scan)"
+  policy      = data.aws_iam_policy_document.metrics_reader.json
+}

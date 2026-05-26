@@ -76,6 +76,17 @@ module "processed_data" {
 }
 
 ###############################################################################
+# DynamoDB table: MusicKPIs (Phase 4)
+###############################################################################
+module "dynamodb" {
+  source = "./modules/dynamodb"
+
+  table_name   = "MusicKPIs"
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+###############################################################################
 # IAM roles (US1 + US4): glue validation + Step Functions execution + transform
 ###############################################################################
 module "iam" {
@@ -87,6 +98,7 @@ module "iam" {
   processed_bucket_arn    = module.processed_data.bucket_arn
   aws_region              = var.aws_region
   aws_account_id          = var.aws_account_id
+  dynamodb_table_arn      = module.dynamodb.table_arn
 }
 
 ###############################################################################
@@ -97,6 +109,13 @@ resource "aws_s3_object" "genre_metrics_script" {
   key    = "genre_metrics/pipeline.py"
   source = "${path.root}/../glue_jobs/genre_metrics/pipeline.py"
   etag   = filemd5("${path.root}/../glue_jobs/genre_metrics/pipeline.py")
+}
+
+resource "aws_s3_object" "genre_metrics_transformations" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "genre_metrics/transformations.py"
+  source = "${path.root}/../glue_jobs/genre_metrics/transformations.py"
+  etag   = filemd5("${path.root}/../glue_jobs/genre_metrics/transformations.py")
 }
 
 module "glue_genre_metrics" {
@@ -111,12 +130,67 @@ module "glue_genre_metrics" {
   timeout         = 30
   max_retries     = 0
   default_arguments = {
+    "--extra-py-files"    = "s3://${module.glue_scripts.bucket_id}/genre_metrics/transformations.py"
     "--raw_bucket"        = ""
     "--processed_bucket"  = ""
     "--listening_prefix"  = "listening-activity/"
     "--songs_prefix"      = "song-catalog/"
     "--run_date"          = ""
   }
+}
+
+###############################################################################
+# Glue metrics-writer job (Phase 4: Python Shell)
+###############################################################################
+resource "aws_s3_object" "metrics_writer_pipeline" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "metrics_writer/pipeline.py"
+  source = "${path.root}/../glue_jobs/metrics_writer/pipeline.py"
+  etag   = filemd5("${path.root}/../glue_jobs/metrics_writer/pipeline.py")
+}
+
+resource "aws_s3_object" "metrics_writer_transformations" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "metrics_writer/transformations.py"
+  source = "${path.root}/../glue_jobs/metrics_writer/transformations.py"
+  etag   = filemd5("${path.root}/../glue_jobs/metrics_writer/transformations.py")
+}
+
+module "glue_metrics_writer" {
+  source = "./modules/glue"
+
+  job_name        = "etl-metrics-writer"
+  script_location = "s3://${module.glue_scripts.bucket_id}/metrics_writer/pipeline.py"
+  role_arn        = module.iam.glue_writer_role_arn
+  job_type        = "pythonshell"
+  timeout         = 5
+  max_retries     = 0
+  default_arguments = {
+    "--extra-py-files"   = "s3://${module.glue_scripts.bucket_id}/metrics_writer/transformations.py"
+    "--processed_bucket" = ""
+    "--metrics_table"    = module.dynamodb.table_name
+    "--run_date"         = ""
+  }
+}
+
+###############################################################################
+# CloudWatch alarm: etl-metrics-writer job failures
+###############################################################################
+resource "aws_cloudwatch_metric_alarm" "metrics_writer_failures" {
+  alarm_name          = "etl-metrics-writer-failures"
+  namespace           = "Glue"
+  metric_name         = "glue.driver.aggregate.numFailedTasks"
+  statistic           = "Sum"
+  period              = 300
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+
+  dimensions = {
+    JobName = "etl-metrics-writer"
+  }
+
+  alarm_actions = [var.sns_alarm_topic_arn]
 }
 
 ###############################################################################

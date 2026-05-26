@@ -27,3 +27,8 @@ variable "processed_bucket_arn" {
   type        = string
   description = "ARN of processed-data bucket"
 }
+
+variable "dynamodb_table_arn" {
+  type        = string
+  description = "ARN of the MusicKPIs DynamoDB table"
+}
