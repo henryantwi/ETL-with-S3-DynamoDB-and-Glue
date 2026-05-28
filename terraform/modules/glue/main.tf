@@ -26,7 +26,7 @@ resource "aws_glue_job" "this" {
   max_capacity     = var.job_type == "glueetl" ? null : 0.0625
   number_of_workers = var.job_type == "glueetl" ? var.num_workers : null
   worker_type      = var.job_type == "glueetl" ? var.worker_type : null
-  glue_version     = var.job_type == "glueetl" ? "4.0" : null
+  glue_version     = var.job_type == "glueetl" ? "4.0" : "3.0"
 
   default_arguments = merge(
     {

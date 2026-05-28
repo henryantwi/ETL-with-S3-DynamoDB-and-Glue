@@ -1,0 +1,118 @@
+{
+  "Comment": "Music streaming ETL pipeline: validate files -> compute genre metrics -> load to DynamoDB -> archive raw files",
+  "StartAt": "ValidateFiles",
+  "States": {
+    "ValidateFiles": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "etl-validate-files",
+        "Arguments": {
+          "--raw_bucket.$": "$.raw_bucket",
+          "--listening_prefix.$": "$.listening_prefix",
+          "--songs_prefix.$": "$.songs_prefix",
+          "--users_prefix.$": "$.users_prefix"
+        }
+      },
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "ValidationFailed"
+        }
+      ],
+      "Next": "TransformMetrics"
+    },
+    "TransformMetrics": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "etl-genre-metrics",
+        "Arguments": {
+          "--raw_bucket.$": "$.raw_bucket",
+          "--processed_bucket.$": "$.processed_bucket",
+          "--listening_prefix.$": "$.listening_prefix",
+          "--songs_prefix.$": "$.songs_prefix",
+          "--run_date.$": "$.run_date"
+        }
+      },
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "TransformFailed"
+        }
+      ],
+      "Next": "LoadMetrics"
+    },
+    "LoadMetrics": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "etl-metrics-writer",
+        "Arguments": {
+          "--processed_bucket.$": "$.processed_bucket",
+          "--metrics_table.$": "$.metrics_table",
+          "--run_date.$": "$.run_date"
+        }
+      },
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "LoadFailed"
+        }
+      ],
+      "Next": "ArchiveFiles"
+    },
+    "ArchiveFiles": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "etl-archive-files",
+        "Arguments": {
+          "--raw_bucket.$": "$.raw_bucket",
+          "--archive_bucket.$": "$.archive_bucket",
+          "--listening_prefix.$": "$.listening_prefix",
+          "--songs_prefix.$": "$.songs_prefix",
+          "--users_prefix.$": "$.users_prefix"
+        }
+      },
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "ArchiveFailed"
+        }
+      ],
+      "Next": "PipelineSucceeded"
+    },
+    "PipelineSucceeded": {
+      "Type": "Succeed"
+    },
+    "ValidationFailed": {
+      "Type": "Fail",
+      "Error": "ValidationFailed",
+      "Cause": "Data validation failed — check CloudWatch Logs for etl-validate-files."
+    },
+    "TransformFailed": {
+      "Type": "Fail",
+      "Error": "TransformFailed",
+      "Cause": "Genre metrics transformation failed — check CloudWatch Logs for etl-genre-metrics."
+    },
+    "LoadFailed": {
+      "Type": "Fail",
+      "Error": "LoadFailed",
+      "Cause": "Metrics load to DynamoDB failed — check CloudWatch Logs for etl-metrics-writer."
+    },
+    "ArchiveFailed": {
+      "Type": "Fail",
+      "Error": "ArchiveFailed",
+      "Cause": "File archival failed — check CloudWatch Logs for etl-archive-files."
+    }
+  }
+}

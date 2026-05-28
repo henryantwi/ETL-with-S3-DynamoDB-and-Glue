@@ -212,3 +212,57 @@ resource "aws_cloudwatch_metric_alarm" "genre_metrics_failures" {
 
   alarm_actions = [var.sns_alarm_topic_arn]
 }
+
+###############################################################################
+# Glue archive job (Python Shell) — move raw files to archive after pipeline
+###############################################################################
+resource "aws_s3_object" "archive_files_script" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "archive/archive_files.py"
+  source = "${path.root}/../glue_jobs/archive/archive_files.py"
+  etag   = filemd5("${path.root}/../glue_jobs/archive/archive_files.py")
+}
+
+module "glue_archive_files" {
+  source = "./modules/glue"
+
+  job_name        = "etl-archive-files"
+  script_location = "s3://${module.glue_scripts.bucket_id}/archive/archive_files.py"
+  role_arn        = module.iam.glue_archive_role_arn
+  job_type        = "pythonshell"
+  timeout         = 10
+  max_retries     = 0
+  default_arguments = {
+    "--raw_bucket"       = module.raw_data.bucket_id
+    "--archive_bucket"   = module.archive.bucket_id
+    "--listening_prefix" = "listening-activity/"
+    "--songs_prefix"     = "song-catalog/"
+    "--users_prefix"     = "user-profiles/"
+  }
+}
+
+###############################################################################
+# Step Functions state machine — ETL pipeline orchestration
+###############################################################################
+resource "aws_cloudwatch_log_group" "sfn_etl_pipeline" {
+  name              = "/aws/states/etl-pipeline"
+  retention_in_days = 30
+}
+
+resource "aws_sfn_state_machine" "etl_pipeline" {
+  name     = "etl-pipeline"
+  role_arn = module.iam.stepfunctions_role_arn
+
+  definition = templatefile("${path.root}/../step_functions/etl_pipeline.asl.json", {})
+
+  logging_configuration {
+    level                  = "ERROR"
+    include_execution_data = false
+    log_destination        = "${aws_cloudwatch_log_group.sfn_etl_pipeline.arn}:*"
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
