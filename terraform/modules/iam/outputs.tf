@@ -18,6 +18,11 @@ output "glue_writer_role_arn" {
   value       = aws_iam_role.glue_writer.arn
 }
 
+output "glue_archive_role_arn" {
+  description = "ARN of etl-glue-archive-role"
+  value       = aws_iam_role.glue_archive.arn
+}
+
 output "metrics_reader_policy_arn" {
   description = "ARN of metrics-reader-policy (attach to consumer IAM roles)"
   value       = aws_iam_policy.metrics_reader.arn

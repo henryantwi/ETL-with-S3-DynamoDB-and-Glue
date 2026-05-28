@@ -156,15 +156,135 @@ data "aws_iam_policy_document" "stepfunctions" {
   }
 }
 
+data "aws_iam_policy_document" "stepfunctions_logs" {
+  statement {
+    sid    = "StateMachineLogging"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogDelivery",
+      "logs:GetLogDelivery",
+      "logs:UpdateLogDelivery",
+      "logs:DeleteLogDelivery",
+      "logs:ListLogDeliveries",
+      "logs:PutLogEvents",
+      "logs:PutResourcePolicy",
+      "logs:DescribeResourcePolicies",
+      "logs:DescribeLogGroups",
+    ]
+    resources = ["*"]
+  }
+}
+
 resource "aws_iam_policy" "stepfunctions" {
   name        = "etl-stepfunctions-policy"
   description = "Least-priv Step Functions role: start Glue etl-* jobs + archive move"
   policy      = data.aws_iam_policy_document.stepfunctions.json
 }
 
+resource "aws_iam_policy" "stepfunctions_logs" {
+  name        = "etl-stepfunctions-logs-policy"
+  description = "Allow Step Functions state machine to deliver execution logs to CloudWatch Logs"
+  policy      = data.aws_iam_policy_document.stepfunctions_logs.json
+}
+
 resource "aws_iam_role_policy_attachment" "stepfunctions" {
   role       = aws_iam_role.stepfunctions.name
   policy_arn = aws_iam_policy.stepfunctions.arn
+}
+
+resource "aws_iam_role_policy_attachment" "stepfunctions_logs" {
+  role       = aws_iam_role.stepfunctions.name
+  policy_arn = aws_iam_policy.stepfunctions_logs.arn
+}
+
+###############################################################################
+# etl-glue-archive-role  (archive files from raw to archive bucket)
+###############################################################################
+
+resource "aws_iam_role" "glue_archive" {
+  name               = "etl-glue-archive-role"
+  assume_role_policy = data.aws_iam_policy_document.glue_trust.json
+}
+
+data "aws_iam_policy_document" "glue_archive" {
+  statement {
+    sid    = "ReadRawData"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = ["${var.raw_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ListRawData"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+    ]
+    resources = [var.raw_bucket_arn]
+  }
+
+  statement {
+    sid    = "WriteArchiveData"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+    ]
+    resources = ["${var.archive_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "DeleteRawAfterArchive"
+    effect = "Allow"
+    actions = [
+      "s3:DeleteObject",
+    ]
+    resources = ["${var.raw_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ReadGlueScripts"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = ["${var.glue_scripts_bucket_arn}/*"]
+  }
+
+  statement {
+    sid    = "ListGlueScripts"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+    ]
+    resources = [var.glue_scripts_bucket_arn]
+  }
+
+  statement {
+    sid    = "GlueJobLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-archive-files",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-archive-files:*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "glue_archive" {
+  name        = "etl-glue-archive-policy"
+  description = "Least-priv: copy raw files to archive, delete originals, write CloudWatch Logs"
+  policy      = data.aws_iam_policy_document.glue_archive.json
+}
+
+resource "aws_iam_role_policy_attachment" "glue_archive" {
+  role       = aws_iam_role.glue_archive.name
+  policy_arn = aws_iam_policy.glue_archive.arn
 }
 
 ###############################################################################

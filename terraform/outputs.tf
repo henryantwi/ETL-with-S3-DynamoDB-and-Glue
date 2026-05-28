@@ -57,3 +57,18 @@ output "music_kpis_table_name" {
   description = "Name of MusicKPIs DynamoDB table"
   value       = module.dynamodb.table_name
 }
+
+output "etl_pipeline_state_machine_arn" {
+  description = "ARN of the etl-pipeline Step Functions state machine"
+  value       = aws_sfn_state_machine.etl_pipeline.arn
+}
+
+output "etl_pipeline_state_machine_name" {
+  description = "Name of the etl-pipeline Step Functions state machine"
+  value       = aws_sfn_state_machine.etl_pipeline.name
+}
+
+output "glue_archive_job_name" {
+  description = "Glue archive job name"
+  value       = module.glue_archive_files.job_name
+}
