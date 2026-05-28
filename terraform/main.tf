@@ -249,6 +249,95 @@ resource "aws_cloudwatch_log_group" "sfn_etl_pipeline" {
   retention_in_days = 30
 }
 
+###############################################################################
+# EventBridge trigger — auto-start ETL pipeline when new data lands in S3
+#
+# EventBridge S3 notifications require the source bucket to have
+# EventBridge notifications enabled.  The rule fires on ANY ObjectCreated
+# event under listening-activity/ prefix so the pipeline starts as soon as
+# a new batch of streams arrives.
+###############################################################################
+
+resource "aws_s3_bucket_notification" "raw_data_eventbridge" {
+  bucket      = module.raw_data.bucket_id
+  eventbridge = true
+}
+
+data "aws_iam_policy_document" "eventbridge_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "eventbridge_sfn" {
+  name               = "etl-eventbridge-sfn-role"
+  assume_role_policy = data.aws_iam_policy_document.eventbridge_trust.json
+}
+
+data "aws_iam_policy_document" "eventbridge_sfn" {
+  statement {
+    sid    = "StartStateMachine"
+    effect = "Allow"
+    actions = [
+      "states:StartExecution",
+    ]
+    resources = [
+      aws_sfn_state_machine.etl_pipeline.arn,
+    ]
+  }
+}
+
+resource "aws_iam_policy" "eventbridge_sfn" {
+  name        = "etl-eventbridge-sfn-policy"
+  description = "Allow EventBridge to start the etl-pipeline Step Functions state machine"
+  policy      = data.aws_iam_policy_document.eventbridge_sfn.json
+}
+
+resource "aws_iam_role_policy_attachment" "eventbridge_sfn" {
+  role       = aws_iam_role.eventbridge_sfn.name
+  policy_arn = aws_iam_policy.eventbridge_sfn.arn
+}
+
+resource "aws_cloudwatch_event_rule" "s3_listening_activity" {
+  name        = "etl-s3-listening-activity-uploaded"
+  description = "Trigger ETL pipeline when a new file lands in listening-activity/ prefix"
+
+  event_pattern = jsonencode({
+    source      = ["aws.s3"]
+    detail-type = ["Object Created"]
+    detail = {
+      bucket = {
+        name = [module.raw_data.bucket_id]
+      }
+      object = {
+        key = [{ prefix = "listening-activity/" }]
+      }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "sfn_etl_pipeline" {
+  rule     = aws_cloudwatch_event_rule.s3_listening_activity.name
+  arn      = aws_sfn_state_machine.etl_pipeline.arn
+  role_arn = aws_iam_role.eventbridge_sfn.arn
+
+  input = jsonencode({
+    raw_bucket        = module.raw_data.bucket_id
+    archive_bucket    = module.archive.bucket_id
+    processed_bucket  = module.processed_data.bucket_id
+    metrics_table     = module.dynamodb.table_name
+    listening_prefix  = "listening-activity/"
+    songs_prefix      = "song-catalog/"
+    users_prefix      = "user-profiles/"
+    run_date          = ""
+  })
+}
+
 resource "aws_sfn_state_machine" "etl_pipeline" {
   name     = "etl-pipeline"
   role_arn = module.iam.stepfunctions_role_arn
