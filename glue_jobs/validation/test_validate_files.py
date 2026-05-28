@@ -21,9 +21,9 @@ LISTENING_KEY = "listening-activity/data.csv"
 SONGS_KEY = "song-catalog/data.csv"
 USERS_KEY = "user-profiles/data.csv"
 
-VALID_LISTENING = b"user_id,track_id,listened_at\nu001,t001,2026-05-20T10:00:00Z\n"
-VALID_SONGS = b"track_id,song_name,artist_name,genre,duration\nt001,Song A,Artist A,Pop,210\n"
-VALID_USERS = b"user_id,username,country\nu001,johndoe,GH\n"
+VALID_LISTENING = b"user_id,track_id,listen_time\nu001,t001,2026-05-20T10:00:00Z\n"
+VALID_SONGS = b"track_id,track_name,artists,track_genre,duration_ms\nt001,Song A,Artist A,Pop,210000\n"
+VALID_USERS = b"user_id,user_name,user_country\nu001,johndoe,GH\n"
 
 
 def _put(s3, key: str, body: bytes) -> None:
@@ -91,7 +91,7 @@ def test_valid_user_profiles_accepted(s3):
 
 
 def test_missing_field_in_listening_activity(s3):
-    _put(s3, LISTENING_KEY, b"user_id,listened_at\nu001,2026-05-20T10:00:00Z\n")
+    _put(s3, LISTENING_KEY, b"user_id,listen_time\nu001,2026-05-20T10:00:00Z\n")
     schema = SCHEMAS[0]
     result = validate_file(s3, BUCKET, schema)
     assert result.status == "FAIL"
@@ -100,18 +100,18 @@ def test_missing_field_in_listening_activity(s3):
 
 
 def test_multiple_missing_fields_in_song_catalog(s3):
-    _put(s3, SONGS_KEY, b"track_id,song_name,duration\nt001,Song A,210\n")
+    _put(s3, SONGS_KEY, b"track_id,track_name,duration_ms\nt001,Song A,210000\n")
     schema = SCHEMAS[1]
     result = validate_file(s3, BUCKET, schema)
     assert result.status == "FAIL"
-    assert "artist_name" in result.missing_fields
-    assert "genre" in result.missing_fields
+    assert "artists" in result.missing_fields
+    assert "track_genre" in result.missing_fields
     assert result.failure_reason == "field-error"
 
 
 def test_one_failure_blocks_all_files(s3):
     # Only upload listening-activity with a missing field; others valid
-    _put(s3, LISTENING_KEY, b"user_id,listened_at\nu001,2026-05-20\n")  # missing track_id
+    _put(s3, LISTENING_KEY, b"user_id,listen_time\nu001,2026-05-20\n")  # missing track_id
     _put(s3, SONGS_KEY, VALID_SONGS)
     _put(s3, USERS_KEY, VALID_USERS)
     results = validate_all(s3, BUCKET)
@@ -122,10 +122,10 @@ def test_one_failure_blocks_all_files(s3):
 
 
 def test_multiple_file_failures_collected_together(s3):
-    # listening-activity: missing track_id; user-profiles: missing country
-    _put(s3, LISTENING_KEY, b"user_id,listened_at\nu001,2026-05-20\n")
+    # listening-activity: missing track_id; user-profiles: missing user_country
+    _put(s3, LISTENING_KEY, b"user_id,listen_time\nu001,2026-05-20\n")
     _put(s3, SONGS_KEY, VALID_SONGS)
-    _put(s3, USERS_KEY, b"user_id,username\nu001,johndoe\n")
+    _put(s3, USERS_KEY, b"user_id,user_name\nu001,johndoe\n")
     results = validate_all(s3, BUCKET)
     failures = [r for r in results if r.status == "FAIL"]
     assert len(failures) == 2

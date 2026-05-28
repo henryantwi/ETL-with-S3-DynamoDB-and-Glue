@@ -19,22 +19,22 @@ def join_activity_to_catalog(activity_df: DataFrame, catalog_df: DataFrame) -> D
 
 def compute_genre_metrics(enriched_df: DataFrame) -> DataFrame:
     metrics = enriched_df.groupBy("date", "genre").agg(
-        F.count("*").alias("total_plays"),
-        F.countDistinct("user_id").alias("distinct_users"),
-        F.sum("duration_seconds").alias("total_listening_time_seconds"),
+        F.count("*").alias("listen_count"),
+        F.countDistinct("user_id").alias("unique_listener_count"),
+        F.sum("duration_seconds").alias("total_listening_time"),
     )
     metrics = metrics.withColumn(
-        "avg_listening_time_per_user_seconds",
+        "avg_listening_time_per_user",
         F.when(
-            F.col("distinct_users") > 0,
-            F.col("total_listening_time_seconds") / F.col("distinct_users"),
+            F.col("unique_listener_count") > 0,
+            F.col("total_listening_time") / F.col("unique_listener_count"),
         ).otherwise(F.lit(0.0)),
     )
     return metrics
 
 
 def compute_top_songs(enriched_df: DataFrame) -> DataFrame:
-    song_counts = enriched_df.groupBy("date", "genre", "song_name").agg(
+    song_counts = enriched_df.groupBy("date", "genre", "track_id", "song_name").agg(
         F.count("*").cast("long").alias("play_count")
     )
     # rank 1 = highest play_count; tiebreak asc song_name
@@ -49,22 +49,23 @@ def compute_top_songs(enriched_df: DataFrame) -> DataFrame:
         F.sort_array(
             F.collect_list(F.struct(
                 F.col("rn").alias("rn"),
+                F.col("track_id").alias("track_id"),
                 F.col("song_name").alias("song_name"),
                 F.col("play_count").alias("play_count"),
             ))
         ).alias("_sorted")
     )
-    # Strip rn using SQL-style transform (supported since Spark 3.0)
+    # Strip rn; output {song_id, song_name, listen_count} to match Phase 4 contract
     top_songs = top_songs.withColumn(
         "top_3_songs",
-        F.expr("transform(_sorted, x -> struct(x.song_name as song_name, x.play_count as play_count))"),
+        F.expr("transform(_sorted, x -> struct(x.track_id as song_id, x.song_name as song_name, x.play_count as listen_count))"),
     ).drop("_sorted")
     return top_songs
 
 
 def compute_top_genres_per_day(metrics_df: DataFrame) -> DataFrame:
     daily_totals = metrics_df.groupBy("date", "genre").agg(
-        F.sum("total_plays").alias("genre_total_plays")
+        F.sum("listen_count").alias("genre_total_plays")
     )
     # rank 1 = most-played genre per date; tiebreak asc genre
     window = Window.partitionBy("date").orderBy(F.desc("genre_total_plays"), F.asc("genre"))
@@ -78,14 +79,15 @@ def compute_top_genres_per_day(metrics_df: DataFrame) -> DataFrame:
                 F.collect_list(F.struct(
                     F.col("rn").alias("rn"),
                     F.col("genre").alias("genre"),
-                    F.col("genre_total_plays").cast("long").alias("play_count"),
+                    F.col("genre_total_plays").cast("long").alias("genre_total_plays"),
                 ))
             ).alias("_sorted")
         )
     )
+    # Output {genre_id, genre_name, listen_count} to match Phase 4 DynamoDB contract
     top5 = top5.withColumn(
-        "top_5_genres_of_day",
-        F.expr("transform(_sorted, x -> struct(x.genre as genre, x.play_count as play_count))"),
+        "top_5_genres",
+        F.expr("transform(_sorted, x -> struct(x.genre as genre_id, x.genre as genre_name, x.genre_total_plays as listen_count))"),
     ).drop("_sorted")
-    # Broadcast-join: every record on the same date gets the same top_5_genres_of_day list
+    # Broadcast-join: every record on the same date gets the same top_5_genres list
     return metrics_df.join(F.broadcast(top5), on="date", how="left")
