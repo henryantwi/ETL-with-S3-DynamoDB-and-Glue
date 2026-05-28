@@ -30,15 +30,15 @@ RUN_DATE = "2026-05-25"
 _ACTIVITY_SCHEMA = StructType([
     StructField("user_id", StringType(), False),
     StructField("track_id", StringType(), False),
-    StructField("listened_at", TimestampType(), False),
+    StructField("listen_time", TimestampType(), False),
 ])
 
 _CATALOG_SCHEMA = StructType([
     StructField("track_id", StringType(), False),
-    StructField("song_name", StringType(), False),
-    StructField("artist_name", StringType(), True),
-    StructField("genre", StringType(), False),
-    StructField("duration_seconds", DoubleType(), True),
+    StructField("track_name", StringType(), False),
+    StructField("artists", StringType(), True),
+    StructField("track_genre", StringType(), False),
+    StructField("duration_ms", DoubleType(), True),
 ])
 
 TS = datetime.datetime(2026, 5, 25, 12, 0, 0)
@@ -74,8 +74,8 @@ def _activity_df(spark, rows=None):
 def _catalog_df(spark, rows=None):
     if rows is None:
         rows = [
-            ("t1", "Song A", "Art1", "Pop", 60.0),
-            ("t2", "Song B", "Art2", "Rock", 90.0),
+            ("t1", "Song A", "Art1", "Pop", 60000.0),
+            ("t2", "Song B", "Art2", "Rock", 90000.0),
         ]
     return spark.createDataFrame(rows, _CATALOG_SCHEMA)
 

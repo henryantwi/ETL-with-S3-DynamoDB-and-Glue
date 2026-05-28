@@ -82,17 +82,17 @@ SCHEMAS: list[FileSchema] = [
     FileSchema(
         prefix="listening-activity/",
         file_type="listening-activity",
-        required_fields=frozenset({"user_id", "track_id", "listened_at"}),
+        required_fields=frozenset({"user_id", "track_id", "listen_time"}),
     ),
     FileSchema(
         prefix="song-catalog/",
         file_type="song-catalog",
-        required_fields=frozenset({"track_id", "song_name", "artist_name", "genre", "duration"}),
+        required_fields=frozenset({"track_id", "track_name", "artists", "track_genre", "duration_ms"}),
     ),
     FileSchema(
         prefix="user-profiles/",
         file_type="user-profiles",
-        required_fields=frozenset({"user_id", "username", "country"}),
+        required_fields=frozenset({"user_id", "user_name", "user_country"}),
     ),
 ]
 
