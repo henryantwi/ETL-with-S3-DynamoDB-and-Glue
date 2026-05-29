@@ -1,7 +1,22 @@
 {
   "Comment": "Music streaming ETL pipeline: validate files -> compute genre metrics -> load to DynamoDB -> archive raw files",
-  "StartAt": "ValidateFiles",
+  "StartAt": "ResolveRunDate",
   "States": {
+    "ResolveRunDate": {
+      "Type": "Pass",
+      "Comment": "Derive run_date (YYYY-MM-DD) from execution start time so the partition label is always a valid, consistent date.",
+      "Parameters": {
+        "raw_bucket.$": "$.raw_bucket",
+        "archive_bucket.$": "$.archive_bucket",
+        "processed_bucket.$": "$.processed_bucket",
+        "metrics_table.$": "$.metrics_table",
+        "listening_prefix.$": "$.listening_prefix",
+        "songs_prefix.$": "$.songs_prefix",
+        "users_prefix.$": "$.users_prefix",
+        "run_date.$": "States.ArrayGetItem(States.StringSplit($$.Execution.StartTime, 'T'), 0)"
+      },
+      "Next": "ValidateFiles"
+    },
     "ValidateFiles": {
       "Type": "Task",
       "Resource": "arn:aws:states:::glue:startJobRun.sync",
