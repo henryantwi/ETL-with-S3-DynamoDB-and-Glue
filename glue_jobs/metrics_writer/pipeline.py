@@ -1,10 +1,19 @@
 import io
 import json
+import re
 import sys
 import time
+from urllib.parse import unquote
 
 import boto3
 import pyarrow.parquet as pq
+
+# DynamoDB TransactWriteItems caps each call at 100 items; a daily run can
+# produce more (real data: ~122 genres), so the load is chunked.
+TRANSACT_CHUNK = 100
+
+_GENRE_RE = re.compile(r"/genre=([^/]+)/")
+_DATE_RE = re.compile(r"/date=([^/]+)/")
 
 try:
     from transformations import parquet_rows_to_ddb_items, build_transact_batch
@@ -42,18 +51,39 @@ def _emit_metrics(cw, records_read: int, records_written: int, duration_s: float
     )
 
 
-def _read_parquet_from_s3(s3, bucket: str, prefix: str) -> list:
+def _read_parquet_from_s3(s3, bucket: str, prefix: str, run_date: str) -> list:
+    """Read all Parquet under prefix. Spark's partitionBy("date","genre") strips
+    those columns into the key path (e.g. .../date=2024-06-25/genre=hip-hop/...),
+    so reconstruct them from the key when absent from the file body. Flat files
+    that still carry genre/date as columns are passed through unchanged."""
     paginator = s3.get_paginator("list_objects_v2")
-    rows = []
+    objects = []
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if not key.endswith(".parquet"):
-                continue
-            body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-            table = pq.read_table(io.BytesIO(body))
-            rows.extend(table.to_pylist())
-    return rows
+            if obj["Key"].endswith(".parquet"):
+                objects.append(obj)
+
+    # Process oldest-first so that if a partition accumulated stale part files
+    # across runs, the newest file wins the (genre, date) key. TransactWriteItems
+    # also forbids duplicate keys in one call, so dedup is required, not just tidy.
+    objects.sort(key=lambda o: (o["LastModified"], o["Key"]))
+
+    by_key = {}
+    for obj in objects:
+        key = obj["Key"]
+        genre_m = _GENRE_RE.search("/" + key)
+        date_m = _DATE_RE.search("/" + key)
+        path_genre = unquote(genre_m.group(1)) if genre_m else None
+        path_date = unquote(date_m.group(1)) if date_m else run_date
+        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+        table = pq.read_table(io.BytesIO(body))
+        for row in table.to_pylist():
+            if not row.get("genre") and path_genre is not None:
+                row["genre"] = path_genre
+            if not row.get("date"):
+                row["date"] = path_date
+            by_key[(row.get("genre"), row.get("date"))] = row
+    return list(by_key.values())
 
 
 def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
@@ -72,7 +102,7 @@ def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
 
     prefix = f"output/date={run_date}/"
     t0 = time.time()
-    rows = _read_parquet_from_s3(s3, processed_bucket, prefix)
+    rows = _read_parquet_from_s3(s3, processed_bucket, prefix, run_date)
     records_read = len(rows)
     _log({
         "level": "INFO",
@@ -94,7 +124,6 @@ def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
 
     t0 = time.time()
     items = parquet_rows_to_ddb_items(rows)
-    transact_batch = build_transact_batch(items, metrics_table)
     records_mapped = len(items)
     _log({
         "level": "INFO",
@@ -103,8 +132,13 @@ def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
         "elapsed_s": round(time.time() - t0, 3),
     })
 
+    # Chunk into <=100-item transactions (DynamoDB TransactWriteItems limit).
+    # Each chunk is atomic; Put on (genre, date) keeps the overall load idempotent.
     t0 = time.time()
-    ddb.transact_write_items(TransactItems=transact_batch)
+    for start in range(0, records_mapped, TRANSACT_CHUNK):
+        chunk = items[start:start + TRANSACT_CHUNK]
+        transact_batch = build_transact_batch(chunk, metrics_table)
+        ddb.transact_write_items(TransactItems=transact_batch)
     duration_s = round(time.time() - start_ts, 3)
     _log({
         "level": "INFO",
