@@ -45,6 +45,13 @@ module "glue_scripts" {
 ###############################################################################
 # Glue validation job (Phase 2)
 ###############################################################################
+resource "aws_s3_object" "validate_files_script" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "validate_files.py"
+  source = "${path.root}/../glue_jobs/validation/validate_files.py"
+  etag   = filemd5("${path.root}/../glue_jobs/validation/validate_files.py")
+}
+
 module "glue_validate" {
   source = "./modules/glue"
 
