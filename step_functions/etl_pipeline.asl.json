@@ -1,8 +1,20 @@
 {
   "Comment": "Music streaming ETL pipeline: validate files -> compute genre metrics -> load to DynamoDB -> archive raw files",
-  "StartAt": "ResolveRunDate",
+  "StartAt": "CheckRunDate",
   "States": {
-    "ResolveRunDate": {
+    "CheckRunDate": {
+      "Type": "Choice",
+      "Comment": "Honor an explicit run_date (e.g. backfilling a specific day's batch); otherwise derive it from the execution start date.",
+      "Choices": [
+        {
+          "Variable": "$.run_date",
+          "StringEquals": "",
+          "Next": "DeriveRunDate"
+        }
+      ],
+      "Default": "ValidateFiles"
+    },
+    "DeriveRunDate": {
       "Type": "Pass",
       "Comment": "Derive run_date (YYYY-MM-DD) from execution start time so the partition label is always a valid, consistent date.",
       "Parameters": {

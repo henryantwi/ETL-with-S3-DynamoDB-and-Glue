@@ -77,6 +77,45 @@ def _upload_parquet(s3, rows: list, run_date: str = RUN_DATE, key_suffix: str = 
     s3.put_object(Bucket=BUCKET, Key=key, Body=_parquet_bytes(rows))
 
 
+def _parquet_bytes_no_keys(rows: list) -> bytes:
+    """Parquet WITHOUT genre/date columns — mirrors real Spark partitionBy output,
+    where the partition columns are encoded in the S3 key path, not the file."""
+    schema = pa.schema([
+        pa.field("listen_count",                pa.int64()),
+        pa.field("unique_listener_count",       pa.int64()),
+        pa.field("total_listening_time",        pa.int64()),
+        pa.field("avg_listening_time_per_user", pa.float64()),
+        pa.field("top_3_songs",  pa.list_(pa.struct([
+            pa.field("song_id",      pa.string()),
+            pa.field("song_name",    pa.string()),
+            pa.field("listen_count", pa.int64()),
+        ]))),
+        pa.field("top_5_genres", pa.list_(pa.struct([
+            pa.field("genre_id",     pa.string()),
+            pa.field("genre_name",   pa.string()),
+            pa.field("listen_count", pa.int64()),
+        ]))),
+    ])
+    table = pa.Table.from_pylist(rows, schema=schema)
+    buf = io.BytesIO()
+    pq.write_table(table, buf)
+    return buf.getvalue()
+
+
+def _upload_partitioned(s3, genre: str, run_date: str = RUN_DATE):
+    """Write one Hive-partitioned genre file (no genre/date columns in body)."""
+    row = {
+        "listen_count": 100,
+        "unique_listener_count": 50,
+        "total_listening_time": 3600,
+        "avg_listening_time_per_user": 72.0,
+        "top_3_songs": [{"song_id": "t1", "song_name": "S1", "listen_count": 30}],
+        "top_5_genres": [{"genre_id": "pop", "genre_name": "Pop", "listen_count": 9800}],
+    }
+    key = f"output/date={run_date}/genre={genre}/part-0.parquet"
+    s3.put_object(Bucket=BUCKET, Key=key, Body=_parquet_bytes_no_keys([row]))
+
+
 def _fixture_rows(n=5):
     return [
         {
@@ -266,11 +305,11 @@ def test_atomicity_rollback_preserves_prior_state():
 
 
 # ---------------------------------------------------------------------------
-# Volume bound
+# Volume: >100 records load via chunked TransactWriteItems (real data = 122 genres/day)
 # ---------------------------------------------------------------------------
 
 @mock_aws
-def test_over_100_records_fails_loudly():
+def test_over_100_records_all_written_chunked():
     s3 = _make_bucket()
     ddb = _make_table()
 
@@ -285,9 +324,59 @@ def test_over_100_records_fails_loudly():
             "top_3_songs": [],
             "top_5_genres": [],
         }
-        for i in range(101)
+        for i in range(122)
     ]
     _upload_parquet(s3, rows)
 
-    with pytest.raises(ValueError, match="101"):
-        run_pipeline(_args(), s3=s3, ddb=ddb, cw=_noop_cw())
+    run_pipeline(_args(), s3=s3, ddb=ddb, cw=_noop_cw())
+
+    result = ddb.scan(TableName=TABLE_NAME, Select="COUNT")
+    assert result["Count"] == 122, f"expected all 122 written, got {result['Count']}"
+
+
+# ---------------------------------------------------------------------------
+# Hive-partitioned output: genre/date come from the S3 key path, not the file
+# ---------------------------------------------------------------------------
+
+@mock_aws
+def test_partitioned_output_reconstructs_genre_and_date():
+    s3 = _make_bucket()
+    ddb = _make_table()
+
+    for g in ("hip-hop", "afrobeat", "r-n-b"):
+        _upload_partitioned(s3, g)
+
+    run_pipeline(_args(), s3=s3, ddb=ddb, cw=_noop_cw())
+
+    for g in ("hip-hop", "afrobeat", "r-n-b"):
+        resp = ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"genre": {"S": g}, "date": {"S": RUN_DATE}},
+        )
+        assert resp.get("Item") is not None, f"missing genre={g} from partition path"
+        assert resp["Item"]["date"]["S"] == RUN_DATE
+
+
+@mock_aws
+def test_duplicate_partition_files_deduped_newest_wins():
+    """A genre partition that accumulated >1 part file across runs must collapse
+    to a single (genre, date) item — TransactWriteItems rejects duplicate keys."""
+    s3 = _make_bucket()
+    ddb = _make_table()
+
+    old = _fixture_rows(1)
+    old[0]["listen_count"] = 111
+    _upload_parquet(s3, old, key_suffix="genre=genre_0/part-1.parquet")
+    new = _fixture_rows(1)
+    new[0]["listen_count"] = 999
+    _upload_parquet(s3, new, key_suffix="genre=genre_0/part-2.parquet")
+
+    run_pipeline(_args(), s3=s3, ddb=ddb, cw=_noop_cw())
+
+    result = ddb.scan(TableName=TABLE_NAME, Select="COUNT")
+    assert result["Count"] == 1, f"expected dedup to 1 item, got {result['Count']}"
+    resp = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"genre": {"S": "genre_0"}, "date": {"S": RUN_DATE}},
+    )
+    assert resp["Item"]["listen_count"]["N"] == "999", "newest part file should win"
