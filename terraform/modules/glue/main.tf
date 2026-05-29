@@ -8,7 +8,7 @@ resource "aws_glue_job" "this" {
     for_each = var.job_type == "glueetl" ? [] : [1]
     content {
       name            = "pythonshell"
-      python_version  = "3"
+      python_version  = "3.9"
       script_location = var.script_location
     }
   }
@@ -26,7 +26,9 @@ resource "aws_glue_job" "this" {
   max_capacity     = var.job_type == "glueetl" ? null : 0.0625
   number_of_workers = var.job_type == "glueetl" ? var.num_workers : null
   worker_type      = var.job_type == "glueetl" ? var.worker_type : null
-  glue_version     = var.job_type == "glueetl" ? "4.0" : "3.0"
+  # glueetl on 4.0; Python Shell on 3.0 (requires PythonVersion 3.9 — the
+  # default "3" is rejected at StartJobRun with "GlueVersion 3.0 not valid").
+  glue_version = var.job_type == "glueetl" ? "4.0" : "3.0"
 
   default_arguments = merge(
     {
