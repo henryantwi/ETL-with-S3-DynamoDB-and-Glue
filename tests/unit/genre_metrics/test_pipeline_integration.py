@@ -108,6 +108,28 @@ def test_staging_write_then_promote():
 
 
 @mock_aws
+def test_promote_clears_stale_output_partitions():
+    # A prior run left a garbage-genre partition under the same date. The new
+    # promote must purge the whole output/date=.../ tree before copying so the
+    # stale partition is gone and not re-loaded into DynamoDB.
+    s3 = boto3.client("s3", region_name="eu-west-1")
+    _create_bucket(s3, BUCKET)
+    s3.put_object(
+        Bucket=BUCKET,
+        Key="output/date=2026-05-25/genre=60.015/part-00000.parquet",
+        Body=b"stale-garbage",
+    )
+    _seed_staging(s3, BUCKET, RUN_DATE)
+
+    promote_staging_to_output(s3, BUCKET, RUN_DATE)
+
+    stale = s3.list_objects_v2(Bucket=BUCKET, Prefix="output/date=2026-05-25/genre=60.015/")
+    assert stale.get("KeyCount", 0) == 0, "Stale garbage partition must be purged"
+    good = s3.list_objects_v2(Bucket=BUCKET, Prefix="output/date=2026-05-25/genre=Pop/")
+    assert good.get("KeyCount", 0) > 0, "New partition must be present"
+
+
+@mock_aws
 def test_failed_promote_leaves_no_output():
     s3 = boto3.client("s3", region_name="eu-west-1")
     _create_bucket(s3, BUCKET)

@@ -12,9 +12,15 @@ def join_activity_to_catalog(activity_df: DataFrame, catalog_df: DataFrame) -> D
         F.coalesce(F.col("duration_ms").cast("double") / 1000.0, F.lit(0.0))
     )
     # actual song name column is track_name
-    return enriched.select("user_id", "track_id", "date", "track_genre", "track_name", "duration_seconds") \
-                   .withColumnRenamed("track_genre", "genre") \
-                   .withColumnRenamed("track_name", "song_name")
+    enriched = enriched.select("user_id", "track_id", "date", "track_genre", "track_name", "duration_seconds") \
+                       .withColumnRenamed("track_genre", "genre") \
+                       .withColumnRenamed("track_name", "song_name")
+    # Schema guard: a valid genre always contains a letter. Drop null/blank/
+    # purely-numeric genres so any column-shifted source row (e.g. genre="60.015")
+    # never reaches the metrics or DynamoDB. Defense-in-depth behind the escape fix.
+    return enriched.filter(
+        F.col("genre").isNotNull() & (F.col("genre").rlike("[A-Za-z]"))
+    )
 
 
 def compute_genre_metrics(enriched_df: DataFrame) -> DataFrame:
