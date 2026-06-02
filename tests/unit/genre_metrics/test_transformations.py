@@ -83,6 +83,36 @@ class TestJoinActivityToCatalog:
         row = result.first()
         assert row.duration_seconds == 0.0
 
+    def test_numeric_genre_rows_dropped(self, spark):
+        # Column-shifted source rows surface as numeric/blank genres (e.g. tempo
+        # "60.015", key "3"). Guard must drop them so they never reach metrics.
+        activity = make_activity(spark, [
+            Row(user_id="u1", track_id="t1", listen_time=TS),
+            Row(user_id="u2", track_id="t2", listen_time=TS),
+            Row(user_id="u3", track_id="t3", listen_time=TS),
+            Row(user_id="u4", track_id="t4", listen_time=TS),
+        ])
+        catalog = make_catalog(spark, [
+            Row(track_id="t1", track_name="Song A", artists="A", track_genre="Pop", duration_ms=60000.0),
+            Row(track_id="t2", track_name="Song B", artists="A", track_genre="60.015", duration_ms=60000.0),
+            Row(track_id="t3", track_name="Song C", artists="A", track_genre="3", duration_ms=60000.0),
+            Row(track_id="t4", track_name="Song D", artists="A", track_genre="", duration_ms=60000.0),
+        ])
+        result = join_activity_to_catalog(activity, catalog)
+        genres = {r.genre for r in result.collect()}
+        assert genres == {"Pop"}
+
+    def test_genre_with_letters_and_digits_kept(self, spark):
+        # Legit genres can contain digits (e.g. "trip-hop", "j-pop", "80s").
+        activity = make_activity(spark, [
+            Row(user_id="u1", track_id="t1", listen_time=TS),
+        ])
+        catalog = make_catalog(spark, [
+            Row(track_id="t1", track_name="Song A", artists="A", track_genre="80s-pop", duration_ms=60000.0),
+        ])
+        result = join_activity_to_catalog(activity, catalog)
+        assert result.first().genre == "80s-pop"
+
 
 class TestComputeGenreMetrics:
     def _enriched(self, spark):
