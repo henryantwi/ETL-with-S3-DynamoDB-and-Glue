@@ -29,9 +29,7 @@ def _create_bucket(s3, name: str, *, versioning: bool, lifecycle: bool = False) 
     s3.put_bucket_encryption(
         Bucket=name,
         ServerSideEncryptionConfiguration={
-            "Rules": [
-                {"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
-            ]
+            "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]
         },
     )
     s3.put_public_access_block(
@@ -179,6 +177,7 @@ def test_glue_validation_policy_grants_get_on_glue_scripts():
 
 def _iam_text() -> str:
     from pathlib import Path
+
     return Path("terraform/modules/iam/main.tf").read_text()
 
 
@@ -198,6 +197,7 @@ def test_stepfunctions_policy_scopes_glue_to_etl_prefix():
 def test_no_wildcard_action_or_resource_in_iam():
     """Constitution: no `*` action or `*` resource anywhere in IAM module."""
     import re
+
     text = _iam_text()
     # Disallow `actions = ["*"]` and `resources = ["*"]` (any whitespace variant)
     assert not re.search(r'actions\s*=\s*\[\s*"\*"\s*\]', text), "wildcard action found"
@@ -212,9 +212,9 @@ def test_no_hardcoded_credentials_in_repo():
     from pathlib import Path
 
     patterns = [
-        re.compile(r"AKIA[0-9A-Z]{16}"),                  # AWS access key id
-        re.compile(r"aws_secret_access_key\s*=\s*['\"]"), # literal secret assign
-        re.compile(r"aws_access_key_id\s*=\s*['\"]"),     # literal key assign
+        re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS access key id
+        re.compile(r"aws_secret_access_key\s*=\s*['\"]"),  # literal secret assign
+        re.compile(r"aws_access_key_id\s*=\s*['\"]"),  # literal key assign
     ]
     roots = ["terraform", "scripts"]
     extra = [Path("pyproject.toml")]

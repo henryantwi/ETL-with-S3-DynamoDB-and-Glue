@@ -1,7 +1,5 @@
-import decimal
 import io
-import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import boto3
 import pyarrow as pa
@@ -10,7 +8,6 @@ import pytest
 from moto import mock_aws
 
 from glue_jobs.metrics_writer.pipeline import run_pipeline
-
 
 TABLE_NAME = "MusicKPIs"
 BUCKET = "test-processed"
@@ -21,17 +18,18 @@ RUN_DATE = "2024-06-25"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_table():
     ddb = boto3.client("dynamodb", region_name="eu-west-1")
     ddb.create_table(
         TableName=TABLE_NAME,
         KeySchema=[
             {"AttributeName": "genre", "KeyType": "HASH"},
-            {"AttributeName": "date",  "KeyType": "RANGE"},
+            {"AttributeName": "date", "KeyType": "RANGE"},
         ],
         AttributeDefinitions=[
             {"AttributeName": "genre", "AttributeType": "S"},
-            {"AttributeName": "date",  "AttributeType": "S"},
+            {"AttributeName": "date", "AttributeType": "S"},
         ],
         BillingMode="PAY_PER_REQUEST",
     )
@@ -48,24 +46,40 @@ def _make_bucket():
 
 
 def _parquet_bytes(rows: list) -> bytes:
-    schema = pa.schema([
-        pa.field("genre",                       pa.string()),
-        pa.field("date",                        pa.string()),
-        pa.field("listen_count",                pa.int64()),
-        pa.field("unique_listener_count",       pa.int64()),
-        pa.field("total_listening_time",        pa.int64()),
-        pa.field("avg_listening_time_per_user", pa.float64()),
-        pa.field("top_3_songs",  pa.list_(pa.struct([
-            pa.field("song_id",      pa.string()),
-            pa.field("song_name",    pa.string()),
+    schema = pa.schema(
+        [
+            pa.field("genre", pa.string()),
+            pa.field("date", pa.string()),
             pa.field("listen_count", pa.int64()),
-        ]))),
-        pa.field("top_5_genres", pa.list_(pa.struct([
-            pa.field("genre_id",     pa.string()),
-            pa.field("genre_name",   pa.string()),
-            pa.field("listen_count", pa.int64()),
-        ]))),
-    ])
+            pa.field("unique_listener_count", pa.int64()),
+            pa.field("total_listening_time", pa.int64()),
+            pa.field("avg_listening_time_per_user", pa.float64()),
+            pa.field(
+                "top_3_songs",
+                pa.list_(
+                    pa.struct(
+                        [
+                            pa.field("song_id", pa.string()),
+                            pa.field("song_name", pa.string()),
+                            pa.field("listen_count", pa.int64()),
+                        ]
+                    )
+                ),
+            ),
+            pa.field(
+                "top_5_genres",
+                pa.list_(
+                    pa.struct(
+                        [
+                            pa.field("genre_id", pa.string()),
+                            pa.field("genre_name", pa.string()),
+                            pa.field("listen_count", pa.int64()),
+                        ]
+                    )
+                ),
+            ),
+        ]
+    )
     table = pa.Table.from_pylist(rows, schema=schema)
     buf = io.BytesIO()
     pq.write_table(table, buf)
@@ -80,22 +94,38 @@ def _upload_parquet(s3, rows: list, run_date: str = RUN_DATE, key_suffix: str = 
 def _parquet_bytes_no_keys(rows: list) -> bytes:
     """Parquet WITHOUT genre/date columns — mirrors real Spark partitionBy output,
     where the partition columns are encoded in the S3 key path, not the file."""
-    schema = pa.schema([
-        pa.field("listen_count",                pa.int64()),
-        pa.field("unique_listener_count",       pa.int64()),
-        pa.field("total_listening_time",        pa.int64()),
-        pa.field("avg_listening_time_per_user", pa.float64()),
-        pa.field("top_3_songs",  pa.list_(pa.struct([
-            pa.field("song_id",      pa.string()),
-            pa.field("song_name",    pa.string()),
+    schema = pa.schema(
+        [
             pa.field("listen_count", pa.int64()),
-        ]))),
-        pa.field("top_5_genres", pa.list_(pa.struct([
-            pa.field("genre_id",     pa.string()),
-            pa.field("genre_name",   pa.string()),
-            pa.field("listen_count", pa.int64()),
-        ]))),
-    ])
+            pa.field("unique_listener_count", pa.int64()),
+            pa.field("total_listening_time", pa.int64()),
+            pa.field("avg_listening_time_per_user", pa.float64()),
+            pa.field(
+                "top_3_songs",
+                pa.list_(
+                    pa.struct(
+                        [
+                            pa.field("song_id", pa.string()),
+                            pa.field("song_name", pa.string()),
+                            pa.field("listen_count", pa.int64()),
+                        ]
+                    )
+                ),
+            ),
+            pa.field(
+                "top_5_genres",
+                pa.list_(
+                    pa.struct(
+                        [
+                            pa.field("genre_id", pa.string()),
+                            pa.field("genre_name", pa.string()),
+                            pa.field("listen_count", pa.int64()),
+                        ]
+                    )
+                ),
+            ),
+        ]
+    )
     table = pa.Table.from_pylist(rows, schema=schema)
     buf = io.BytesIO()
     pq.write_table(table, buf)
@@ -154,6 +184,7 @@ def _noop_cw():
 # T015: US1 — Basic happy-path lookup
 # ---------------------------------------------------------------------------
 
+
 @mock_aws
 def test_happy_path_single_item_lookup():
     s3 = _make_bucket()
@@ -168,8 +199,14 @@ def test_happy_path_single_item_lookup():
     )
     item = resp.get("Item")
     assert item is not None, "GetItem returned no item"
-    for field in ("listen_count", "unique_listener_count", "total_listening_time",
-                  "avg_listening_time_per_user", "top_3_songs", "top_5_genres"):
+    for field in (
+        "listen_count",
+        "unique_listener_count",
+        "total_listening_time",
+        "avg_listening_time_per_user",
+        "top_3_songs",
+        "top_5_genres",
+    ):
         assert field in item, f"missing field: {field}"
 
 
@@ -220,6 +257,7 @@ def test_zero_input_no_transaction_issued():
 # T016: US2 — Idempotent reload
 # ---------------------------------------------------------------------------
 
+
 @mock_aws
 def test_idempotent_reload_no_duplicates():
     s3 = _make_bucket()
@@ -266,6 +304,7 @@ def test_idempotent_reload_values_reflect_latest_run():
 # T018: US3 — Atomic visibility (rollback on failure)
 # ---------------------------------------------------------------------------
 
+
 @mock_aws
 def test_atomicity_rollback_preserves_prior_state():
     s3 = _make_bucket()
@@ -287,6 +326,7 @@ def test_atomicity_rollback_preserves_prior_state():
 
     mock_ddb = MagicMock(wraps=ddb)
     from botocore.exceptions import ClientError
+
     mock_ddb.transact_write_items.side_effect = ClientError(
         {"Error": {"Code": "TransactionCanceledException", "Message": "simulated"}},
         "TransactWriteItems",
@@ -307,6 +347,7 @@ def test_atomicity_rollback_preserves_prior_state():
 # ---------------------------------------------------------------------------
 # Volume: >100 records load via chunked TransactWriteItems (real data = 122 genres/day)
 # ---------------------------------------------------------------------------
+
 
 @mock_aws
 def test_over_100_records_all_written_chunked():
@@ -337,6 +378,7 @@ def test_over_100_records_all_written_chunked():
 # ---------------------------------------------------------------------------
 # Hive-partitioned output: genre/date come from the S3 key path, not the file
 # ---------------------------------------------------------------------------
+
 
 @mock_aws
 def test_partitioned_output_reconstructs_genre_and_date():

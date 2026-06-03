@@ -248,10 +248,7 @@ def main() -> None:
 
     failures = [r for r in results if r.status == "FAIL"]
     if failures:
-        summary = "; ".join(
-            f"{r.file_type}: {r.failure_reason} {r.missing_fields or ''}"
-            for r in failures
-        )
+        summary = "; ".join(f"{r.file_type}: {r.failure_reason} {r.missing_fields or ''}" for r in failures)
         raise ValueError(f"Validation failed for {len(failures)} file(s): {summary}")
 
 

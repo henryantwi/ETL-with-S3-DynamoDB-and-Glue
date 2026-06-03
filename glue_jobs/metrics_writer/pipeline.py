@@ -16,9 +16,9 @@ _GENRE_RE = re.compile(r"/genre=([^/]+)/")
 _DATE_RE = re.compile(r"/date=([^/]+)/")
 
 try:
-    from transformations import parquet_rows_to_ddb_items, build_transact_batch
+    from transformations import build_transact_batch, parquet_rows_to_ddb_items
 except ImportError:
-    from glue_jobs.metrics_writer.transformations import parquet_rows_to_ddb_items, build_transact_batch
+    from glue_jobs.metrics_writer.transformations import build_transact_batch, parquet_rows_to_ddb_items
 
 
 def _log(record: dict) -> None:
@@ -104,49 +104,57 @@ def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
     t0 = time.time()
     rows = _read_parquet_from_s3(s3, processed_bucket, prefix, run_date)
     records_read = len(rows)
-    _log({
-        "level": "INFO",
-        "stage": "read_complete",
-        "records_read": records_read,
-        "prefix": prefix,
-        "elapsed_s": round(time.time() - t0, 3),
-    })
+    _log(
+        {
+            "level": "INFO",
+            "stage": "read_complete",
+            "records_read": records_read,
+            "prefix": prefix,
+            "elapsed_s": round(time.time() - t0, 3),
+        }
+    )
 
     if records_read == 0:
-        _log({
-            "level": "WARN",
-            "stage": "no_records",
-            "message": "zero records read from Parquet; no transaction issued",
-            "run_date": run_date,
-        })
+        _log(
+            {
+                "level": "WARN",
+                "stage": "no_records",
+                "message": "zero records read from Parquet; no transaction issued",
+                "run_date": run_date,
+            }
+        )
         _emit_metrics(cw, 0, 0, round(time.time() - start_ts, 3))
         return
 
     t0 = time.time()
     items = parquet_rows_to_ddb_items(rows)
     records_mapped = len(items)
-    _log({
-        "level": "INFO",
-        "stage": "transform_complete",
-        "records_mapped": records_mapped,
-        "elapsed_s": round(time.time() - t0, 3),
-    })
+    _log(
+        {
+            "level": "INFO",
+            "stage": "transform_complete",
+            "records_mapped": records_mapped,
+            "elapsed_s": round(time.time() - t0, 3),
+        }
+    )
 
     # Chunk into <=100-item transactions (DynamoDB TransactWriteItems limit).
     # Each chunk is atomic; Put on (genre, date) keeps the overall load idempotent.
     t0 = time.time()
     for start in range(0, records_mapped, TRANSACT_CHUNK):
-        chunk = items[start:start + TRANSACT_CHUNK]
+        chunk = items[start : start + TRANSACT_CHUNK]
         transact_batch = build_transact_batch(chunk, metrics_table)
         ddb.transact_write_items(TransactItems=transact_batch)
     duration_s = round(time.time() - start_ts, 3)
-    _log({
-        "level": "INFO",
-        "stage": "write_complete",
-        "records_written": records_mapped,
-        "table": metrics_table,
-        "elapsed_s": round(time.time() - t0, 3),
-    })
+    _log(
+        {
+            "level": "INFO",
+            "stage": "write_complete",
+            "records_written": records_mapped,
+            "table": metrics_table,
+            "elapsed_s": round(time.time() - t0, 3),
+        }
+    )
 
     _emit_metrics(cw, records_read, records_mapped, duration_s)
 
@@ -154,6 +162,7 @@ def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
 def main():
     try:
         from awsglue.utils import getResolvedOptions
+
         args = getResolvedOptions(
             sys.argv,
             ["processed_bucket", "metrics_table", "run_date"],
@@ -161,8 +170,8 @@ def main():
     except ImportError:
         args = {
             "processed_bucket": sys.argv[1],
-            "metrics_table":    sys.argv[2],
-            "run_date":         sys.argv[3],
+            "metrics_table": sys.argv[2],
+            "run_date": sys.argv[3],
         }
 
     run_pipeline(args)

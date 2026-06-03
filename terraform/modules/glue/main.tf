@@ -23,9 +23,9 @@ resource "aws_glue_job" "this" {
   }
 
   # Python Shell uses MaxCapacity; glueetl uses NumberOfWorkers + WorkerType
-  max_capacity     = var.job_type == "glueetl" ? null : 0.0625
+  max_capacity      = var.job_type == "glueetl" ? null : 0.0625
   number_of_workers = var.job_type == "glueetl" ? var.num_workers : null
-  worker_type      = var.job_type == "glueetl" ? var.worker_type : null
+  worker_type       = var.job_type == "glueetl" ? var.worker_type : null
   # glueetl on 4.0; Python Shell on 3.0 (requires PythonVersion 3.9 — the
   # default "3" is rejected at StartJobRun with "GlueVersion 3.0 not valid").
   glue_version = var.job_type == "glueetl" ? "4.0" : "3.0"

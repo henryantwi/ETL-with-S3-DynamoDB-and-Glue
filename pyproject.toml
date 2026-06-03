@@ -11,8 +11,23 @@ dev = [
     "pyarrow>=14.0",
     "pytest>=8.0",
     "moto[dynamodb,s3]>=5.0",
+    "ruff>=0.6",
 ]
+# Note: pyspark (==3.5.1) is intentionally NOT declared here. It requires
+# Python <=3.11 while this project targets >=3.12, so the Spark test job in CI
+# installs it into a standalone 3.11 venv (see .github/workflows/ci.yml).
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["smoke_test_*.py", "test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", ".venv-spark", "data"]
+
+[tool.ruff.lint]
+# Lenient initial ruleset: pycodestyle errors/warnings, pyflakes, import sort.
+# Tighten over time.
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

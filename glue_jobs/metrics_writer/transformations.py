@@ -30,32 +30,38 @@ def parquet_rows_to_ddb_items(rows: list) -> list:
         avg_raw = row.get("avg_listening_time_per_user", 0)
         avg_val = decimal.Decimal(str(avg_raw))
 
-        item_size = len(json.dumps({
-            "genre": row["genre"],
-            "date": row["date"],
-            "listen_count": int(row["listen_count"]),
-            "unique_listener_count": int(row["unique_listener_count"]),
-            "total_listening_time": int(row["total_listening_time"]),
-            "avg_listening_time_per_user": float(avg_val),
-            "top_3_songs": top_3,
-            "top_5_genres": top_5,
-        }).encode("utf-8"))
+        item_size = len(
+            json.dumps(
+                {
+                    "genre": row["genre"],
+                    "date": row["date"],
+                    "listen_count": int(row["listen_count"]),
+                    "unique_listener_count": int(row["unique_listener_count"]),
+                    "total_listening_time": int(row["total_listening_time"]),
+                    "avg_listening_time_per_user": float(avg_val),
+                    "top_3_songs": top_3,
+                    "top_5_genres": top_5,
+                }
+            ).encode("utf-8")
+        )
         if item_size > 400 * 1024:
             raise ValueError(
                 f"Item for (genre={row['genre']}, date={row['date']}) exceeds 400 KB "
                 f"({item_size} bytes). Upstream Phase 3 regression."
             )
 
-        items.append({
-            "genre": str(row["genre"]),
-            "date": str(row["date"]),
-            "listen_count": int(row["listen_count"]),
-            "unique_listener_count": int(row["unique_listener_count"]),
-            "total_listening_time": int(row["total_listening_time"]),
-            "avg_listening_time_per_user": avg_val,
-            "top_3_songs": top_3,
-            "top_5_genres": top_5,
-        })
+        items.append(
+            {
+                "genre": str(row["genre"]),
+                "date": str(row["date"]),
+                "listen_count": int(row["listen_count"]),
+                "unique_listener_count": int(row["unique_listener_count"]),
+                "total_listening_time": int(row["total_listening_time"]),
+                "avg_listening_time_per_user": avg_val,
+                "top_3_songs": top_3,
+                "top_5_genres": top_5,
+            }
+        )
     return items
 
 
