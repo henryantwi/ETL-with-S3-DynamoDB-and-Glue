@@ -68,7 +68,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~> 1.5"
+          terraform_version: "1.9.8"   # backend requires >= 1.6
 
       - name: Terraform Init
         run: terraform -chdir=terraform init -backend-config="bucket=${{ env.TF_BACKEND_BUCKET }}"
@@ -96,7 +96,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~> 1.5"
+          terraform_version: "1.9.8"   # backend requires >= 1.6
 
       - name: Terraform Init
         run: terraform -chdir=terraform init -backend-config="bucket=${{ env.TF_BACKEND_BUCKET }}"
