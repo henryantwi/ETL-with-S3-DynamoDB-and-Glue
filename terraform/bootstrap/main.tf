@@ -179,6 +179,27 @@ data "aws_iam_policy_document" "deploy_manage" {
     ]
     resources = ["arn:aws:iam::${local.account_id}:role/etl-*"]
   }
+
+  # Customer-managed policies the stack defines (etl-*-policy, metrics-*-policy).
+  statement {
+    sid = "ManageCustomerPolicies"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:DeletePolicy",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicyVersion",
+      "iam:ListPolicyVersions",
+      "iam:SetDefaultPolicyVersion",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+    ]
+    resources = [
+      "arn:aws:iam::${local.account_id}:policy/etl-*",
+      "arn:aws:iam::${local.account_id}:policy/metrics-*",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "deploy_manage" {
