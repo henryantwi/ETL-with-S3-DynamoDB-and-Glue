@@ -45,6 +45,13 @@ module "glue_scripts" {
 ###############################################################################
 # Glue validation job (Phase 2)
 ###############################################################################
+resource "aws_s3_object" "validate_files_script" {
+  bucket = module.glue_scripts.bucket_id
+  key    = "validate_files.py"
+  source = "${path.root}/../glue_jobs/validation/validate_files.py"
+  etag   = filemd5("${path.root}/../glue_jobs/validation/validate_files.py")
+}
+
 module "glue_validate" {
   source = "./modules/glue"
 
@@ -130,12 +137,12 @@ module "glue_genre_metrics" {
   timeout         = 30
   max_retries     = 0
   default_arguments = {
-    "--extra-py-files"    = "s3://${module.glue_scripts.bucket_id}/genre_metrics/transformations.py"
-    "--raw_bucket"        = ""
-    "--processed_bucket"  = ""
-    "--listening_prefix"  = "listening-activity/"
-    "--songs_prefix"      = "song-catalog/"
-    "--run_date"          = ""
+    "--extra-py-files"   = "s3://${module.glue_scripts.bucket_id}/genre_metrics/transformations.py"
+    "--raw_bucket"       = ""
+    "--processed_bucket" = ""
+    "--listening_prefix" = "listening-activity/"
+    "--songs_prefix"     = "song-catalog/"
+    "--run_date"         = ""
   }
 }
 
@@ -174,6 +181,13 @@ module "glue_metrics_writer" {
 }
 
 ###############################################################################
+# SNS topic for CloudWatch alarm notifications
+###############################################################################
+resource "aws_sns_topic" "etl_alerts" {
+  name = "${var.project_name}-pipeline-alerts"
+}
+
+###############################################################################
 # CloudWatch alarm: etl-metrics-writer job failures
 ###############################################################################
 resource "aws_cloudwatch_metric_alarm" "metrics_writer_failures" {
@@ -190,7 +204,7 @@ resource "aws_cloudwatch_metric_alarm" "metrics_writer_failures" {
     JobName = "etl-metrics-writer"
   }
 
-  alarm_actions = [var.sns_alarm_topic_arn]
+  alarm_actions = [aws_sns_topic.etl_alerts.arn]
 }
 
 ###############################################################################
@@ -210,7 +224,7 @@ resource "aws_cloudwatch_metric_alarm" "genre_metrics_failures" {
     JobName = "etl-genre-metrics"
   }
 
-  alarm_actions = [var.sns_alarm_topic_arn]
+  alarm_actions = [aws_sns_topic.etl_alerts.arn]
 }
 
 ###############################################################################
@@ -327,14 +341,14 @@ resource "aws_cloudwatch_event_target" "sfn_etl_pipeline" {
   role_arn = aws_iam_role.eventbridge_sfn.arn
 
   input = jsonencode({
-    raw_bucket        = module.raw_data.bucket_id
-    archive_bucket    = module.archive.bucket_id
-    processed_bucket  = module.processed_data.bucket_id
-    metrics_table     = module.dynamodb.table_name
-    listening_prefix  = "listening-activity/"
-    songs_prefix      = "song-catalog/"
-    users_prefix      = "user-profiles/"
-    run_date          = ""
+    raw_bucket       = module.raw_data.bucket_id
+    archive_bucket   = module.archive.bucket_id
+    processed_bucket = module.processed_data.bucket_id
+    metrics_table    = module.dynamodb.table_name
+    listening_prefix = "listening-activity/"
+    songs_prefix     = "song-catalog/"
+    users_prefix     = "user-profiles/"
+    run_date         = ""
   })
 }
 

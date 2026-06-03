@@ -5,41 +5,42 @@ Strategy: avoid Spark S3 reads/writes (needs hadoop-aws JARs not available local
 - Staging-swap tests: seed moto S3 manually, call promote_staging_to_output directly.
 - Empty-join / cloudwatch tests: use in-memory DataFrames, mock write_to_staging.
 """
+
 import datetime
 import json
 import time
 import unittest.mock as mock
-import pytest
-import boto3
-from pyspark.sql.types import (
-    StructType, StructField, StringType, DoubleType, TimestampType, LongType
-)
 
+import boto3
+import pytest
 from moto import mock_aws
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType, TimestampType
 
 from glue_jobs.genre_metrics.pipeline import (
-    promote_staging_to_output,
-    emit_cloudwatch_metrics,
     process_pipeline,
+    promote_staging_to_output,
 )
-
 
 BUCKET = "test-processed"
 RUN_DATE = "2026-05-25"
 
-_ACTIVITY_SCHEMA = StructType([
-    StructField("user_id", StringType(), False),
-    StructField("track_id", StringType(), False),
-    StructField("listen_time", TimestampType(), False),
-])
+_ACTIVITY_SCHEMA = StructType(
+    [
+        StructField("user_id", StringType(), False),
+        StructField("track_id", StringType(), False),
+        StructField("listen_time", TimestampType(), False),
+    ]
+)
 
-_CATALOG_SCHEMA = StructType([
-    StructField("track_id", StringType(), False),
-    StructField("track_name", StringType(), False),
-    StructField("artists", StringType(), True),
-    StructField("track_genre", StringType(), False),
-    StructField("duration_ms", DoubleType(), True),
-])
+_CATALOG_SCHEMA = StructType(
+    [
+        StructField("track_id", StringType(), False),
+        StructField("track_name", StringType(), False),
+        StructField("artists", StringType(), True),
+        StructField("track_genre", StringType(), False),
+        StructField("duration_ms", DoubleType(), True),
+    ]
+)
 
 TS = datetime.datetime(2026, 5, 25, 12, 0, 0)
 
@@ -92,6 +93,7 @@ def _empty_catalog_df(spark):
 # T018: staging-swap — test boto3 copy+delete logic (no Spark S3 write needed)
 # ---------------------------------------------------------------------------
 
+
 @mock_aws
 def test_staging_write_then_promote():
     s3 = boto3.client("s3", region_name="eu-west-1")
@@ -105,6 +107,28 @@ def test_staging_write_then_promote():
 
     output_resp = s3.list_objects_v2(Bucket=BUCKET, Prefix="output/")
     assert output_resp.get("KeyCount", 0) > 0, "Output objects should exist after promotion"
+
+
+@mock_aws
+def test_promote_clears_stale_output_partitions():
+    # A prior run left a garbage-genre partition under the same date. The new
+    # promote must purge the whole output/date=.../ tree before copying so the
+    # stale partition is gone and not re-loaded into DynamoDB.
+    s3 = boto3.client("s3", region_name="eu-west-1")
+    _create_bucket(s3, BUCKET)
+    s3.put_object(
+        Bucket=BUCKET,
+        Key="output/date=2026-05-25/genre=60.015/part-00000.parquet",
+        Body=b"stale-garbage",
+    )
+    _seed_staging(s3, BUCKET, RUN_DATE)
+
+    promote_staging_to_output(s3, BUCKET, RUN_DATE)
+
+    stale = s3.list_objects_v2(Bucket=BUCKET, Prefix="output/date=2026-05-25/genre=60.015/")
+    assert stale.get("KeyCount", 0) == 0, "Stale garbage partition must be purged"
+    good = s3.list_objects_v2(Bucket=BUCKET, Prefix="output/date=2026-05-25/genre=Pop/")
+    assert good.get("KeyCount", 0) > 0, "New partition must be present"
 
 
 @mock_aws
@@ -135,6 +159,7 @@ def test_staging_path_uses_run_id():
 # T019: idempotency — two promote runs for same run_date produce same output count
 # ---------------------------------------------------------------------------
 
+
 @mock_aws
 def test_idempotent_second_run():
     s3 = boto3.client("s3", region_name="eu-west-1")
@@ -157,12 +182,15 @@ def test_idempotent_second_run():
 # T028: empty-join — uses in-memory DataFrames, mocks write calls
 # ---------------------------------------------------------------------------
 
+
 def test_empty_join_logs_warning(spark, capsys):
     s3 = mock.MagicMock()
     cw = mock.MagicMock()
 
-    with mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"), \
-         mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"):
+    with (
+        mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"),
+        mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"),
+    ):
         process_pipeline(
             activity_df=_empty_activity_df(spark),
             catalog_df=_empty_catalog_df(spark),
@@ -182,7 +210,9 @@ def test_empty_join_logs_warning(spark, capsys):
                 log_lines.append(json.loads(line))
             except json.JSONDecodeError:
                 pass
-    warn_logs = [l for l in log_lines if l.get("status") == "warn" and l.get("message") == "no_records_produced"]
+    warn_logs = [
+        rec for rec in log_lines if rec.get("status") == "warn" and rec.get("message") == "no_records_produced"
+    ]
     assert len(warn_logs) > 0, "Expected warning log for empty join"
 
 
@@ -190,8 +220,10 @@ def test_empty_join_writes_no_output(spark):
     s3 = mock.MagicMock()
     cw = mock.MagicMock()
 
-    with mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging") as mock_write, \
-         mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output") as mock_promote:
+    with (
+        mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging") as mock_write,
+        mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output") as mock_promote,
+    ):
         process_pipeline(
             activity_df=_empty_activity_df(spark),
             catalog_df=_empty_catalog_df(spark),
@@ -210,8 +242,10 @@ def test_empty_join_exits_success(spark):
     s3 = mock.MagicMock()
     cw = mock.MagicMock()
 
-    with mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"), \
-         mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"):
+    with (
+        mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"),
+        mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"),
+    ):
         # Should return without raising
         process_pipeline(
             activity_df=_empty_activity_df(spark),
@@ -229,12 +263,15 @@ def test_empty_join_exits_success(spark):
 # T030: CloudWatch metrics emission
 # ---------------------------------------------------------------------------
 
+
 def test_cloudwatch_metrics_emitted(spark):
     s3 = mock.MagicMock()
     cw = mock.MagicMock()
 
-    with mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"), \
-         mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"):
+    with (
+        mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"),
+        mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"),
+    ):
         process_pipeline(
             activity_df=_activity_df(spark),
             catalog_df=_catalog_df(spark),
@@ -259,8 +296,10 @@ def test_cloudwatch_emitted_on_empty_join(spark):
     s3 = mock.MagicMock()
     cw = mock.MagicMock()
 
-    with mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"), \
-         mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"):
+    with (
+        mock.patch("glue_jobs.genre_metrics.pipeline.write_to_staging"),
+        mock.patch("glue_jobs.genre_metrics.pipeline.promote_staging_to_output"),
+    ):
         process_pipeline(
             activity_df=_empty_activity_df(spark),
             catalog_df=_empty_catalog_df(spark),

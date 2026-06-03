@@ -1,39 +1,41 @@
 import datetime
-import pytest
+
 from pyspark.sql import Row
-from pyspark.sql.types import (
-    StructType, StructField, StringType, DoubleType, TimestampType, LongType, DateType
-)
+from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType, TimestampType
 
 from glue_jobs.genre_metrics.transformations import (
-    join_activity_to_catalog,
     compute_genre_metrics,
-    compute_top_songs,
     compute_top_genres_per_day,
+    compute_top_songs,
+    join_activity_to_catalog,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def make_activity(spark, rows):
-    schema = StructType([
-        StructField("user_id", StringType(), False),
-        StructField("track_id", StringType(), False),
-        StructField("listen_time", TimestampType(), False),
-    ])
+    schema = StructType(
+        [
+            StructField("user_id", StringType(), False),
+            StructField("track_id", StringType(), False),
+            StructField("listen_time", TimestampType(), False),
+        ]
+    )
     return spark.createDataFrame(rows, schema)
 
 
 def make_catalog(spark, rows):
-    schema = StructType([
-        StructField("track_id", StringType(), False),
-        StructField("track_name", StringType(), False),
-        StructField("artists", StringType(), True),
-        StructField("track_genre", StringType(), False),
-        StructField("duration_ms", DoubleType(), True),
-    ])
+    schema = StructType(
+        [
+            StructField("track_id", StringType(), False),
+            StructField("track_name", StringType(), False),
+            StructField("artists", StringType(), True),
+            StructField("track_genre", StringType(), False),
+            StructField("duration_ms", DoubleType(), True),
+        ]
+    )
     return spark.createDataFrame(rows, schema)
 
 
@@ -45,16 +47,23 @@ TS2 = datetime.datetime(2026, 5, 26, 12, 0, 0)
 # T013: join + aggregation tests
 # ---------------------------------------------------------------------------
 
+
 class TestJoinActivityToCatalog:
     def test_join_produces_enriched_events(self, spark):
-        activity = make_activity(spark, [
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-            Row(user_id="u2", track_id="t2", listen_time=TS),
-        ])
-        catalog = make_catalog(spark, [
-            Row(track_id="t1", track_name="Song A", artists="Art1", track_genre="Pop", duration_ms=180000.0),
-            Row(track_id="t2", track_name="Song B", artists="Art2", track_genre="Rock", duration_ms=200000.0),
-        ])
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+                Row(user_id="u2", track_id="t2", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="Art1", track_genre="Pop", duration_ms=180000.0),
+                Row(track_id="t2", track_name="Song B", artists="Art2", track_genre="Rock", duration_ms=200000.0),
+            ],
+        )
         result = join_activity_to_catalog(activity, catalog)
         rows = {r.user_id: r for r in result.collect()}
         assert len(rows) == 2
@@ -62,43 +71,103 @@ class TestJoinActivityToCatalog:
         assert rows["u2"].genre == "Rock"
 
     def test_unmatched_rows_excluded(self, spark):
-        activity = make_activity(spark, [
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-            Row(user_id="u2", track_id="t_unknown", listen_time=TS),
-        ])
-        catalog = make_catalog(spark, [
-            Row(track_id="t1", track_name="Song A", artists="Art1", track_genre="Pop", duration_ms=180000.0),
-        ])
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+                Row(user_id="u2", track_id="t_unknown", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="Art1", track_genre="Pop", duration_ms=180000.0),
+            ],
+        )
         result = join_activity_to_catalog(activity, catalog)
         assert result.count() == 1
 
     def test_null_duration_contributes_zero(self, spark):
-        activity = make_activity(spark, [
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-        ])
-        catalog = make_catalog(spark, [
-            Row(track_id="t1", track_name="Song A", artists="Art1", track_genre="Pop", duration_ms=None),
-        ])
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="Art1", track_genre="Pop", duration_ms=None),
+            ],
+        )
         result = join_activity_to_catalog(activity, catalog)
         row = result.first()
         assert row.duration_seconds == 0.0
 
+    def test_numeric_genre_rows_dropped(self, spark):
+        # Column-shifted source rows surface as numeric/blank genres (e.g. tempo
+        # "60.015", key "3"). Guard must drop them so they never reach metrics.
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+                Row(user_id="u2", track_id="t2", listen_time=TS),
+                Row(user_id="u3", track_id="t3", listen_time=TS),
+                Row(user_id="u4", track_id="t4", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="A", track_genre="Pop", duration_ms=60000.0),
+                Row(track_id="t2", track_name="Song B", artists="A", track_genre="60.015", duration_ms=60000.0),
+                Row(track_id="t3", track_name="Song C", artists="A", track_genre="3", duration_ms=60000.0),
+                Row(track_id="t4", track_name="Song D", artists="A", track_genre="", duration_ms=60000.0),
+            ],
+        )
+        result = join_activity_to_catalog(activity, catalog)
+        genres = {r.genre for r in result.collect()}
+        assert genres == {"Pop"}
+
+    def test_genre_with_letters_and_digits_kept(self, spark):
+        # Legit genres can contain digits (e.g. "trip-hop", "j-pop", "80s").
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="A", track_genre="80s-pop", duration_ms=60000.0),
+            ],
+        )
+        result = join_activity_to_catalog(activity, catalog)
+        assert result.first().genre == "80s-pop"
+
 
 class TestComputeGenreMetrics:
     def _enriched(self, spark):
-        activity = make_activity(spark, [
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-            Row(user_id="u2", track_id="t1", listen_time=TS),
-            Row(user_id="u1", track_id="t2", listen_time=TS),
-            Row(user_id="u1", track_id="t3", listen_time=TS2),
-            Row(user_id="u2", track_id="t4", listen_time=TS2),
-        ])
-        catalog = make_catalog(spark, [
-            Row(track_id="t1", track_name="Song A", artists="A1", track_genre="Pop", duration_ms=60000.0),
-            Row(track_id="t2", track_name="Song B", artists="A2", track_genre="Rock", duration_ms=120000.0),
-            Row(track_id="t3", track_name="Song C", artists="A3", track_genre="Pop", duration_ms=90000.0),
-            Row(track_id="t4", track_name="Song D", artists="A4", track_genre="Rock", duration_ms=150000.0),
-        ])
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+                Row(user_id="u2", track_id="t1", listen_time=TS),
+                Row(user_id="u1", track_id="t2", listen_time=TS),
+                Row(user_id="u1", track_id="t3", listen_time=TS2),
+                Row(user_id="u2", track_id="t4", listen_time=TS2),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="A1", track_genre="Pop", duration_ms=60000.0),
+                Row(track_id="t2", track_name="Song B", artists="A2", track_genre="Rock", duration_ms=120000.0),
+                Row(track_id="t3", track_name="Song C", artists="A3", track_genre="Pop", duration_ms=90000.0),
+                Row(track_id="t4", track_name="Song D", artists="A4", track_genre="Rock", duration_ms=150000.0),
+            ],
+        )
         return join_activity_to_catalog(activity, catalog)
 
     def test_one_record_per_pair(self, spark):
@@ -106,14 +175,20 @@ class TestComputeGenreMetrics:
         assert result.count() == 4
 
     def test_aggregate_values_correct(self, spark):
-        activity = make_activity(spark, [
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-            Row(user_id="u2", track_id="t1", listen_time=TS),
-        ])
-        catalog = make_catalog(spark, [
-            Row(track_id="t1", track_name="Song A", artists="A1", track_genre="Pop", duration_ms=60000.0),
-        ])
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+                Row(user_id="u2", track_id="t1", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="A1", track_genre="Pop", duration_ms=60000.0),
+            ],
+        )
         enriched = join_activity_to_catalog(activity, catalog)
         result = compute_genre_metrics(enriched)
         row = result.first()
@@ -123,12 +198,18 @@ class TestComputeGenreMetrics:
         assert abs(row.avg_listening_time_per_user - 90.0) < 0.001
 
     def test_null_duration_contributes_zero(self, spark):
-        activity = make_activity(spark, [
-            Row(user_id="u1", track_id="t1", listen_time=TS),
-        ])
-        catalog = make_catalog(spark, [
-            Row(track_id="t1", track_name="Song A", artists="A1", track_genre="Pop", duration_ms=None),
-        ])
+        activity = make_activity(
+            spark,
+            [
+                Row(user_id="u1", track_id="t1", listen_time=TS),
+            ],
+        )
+        catalog = make_catalog(
+            spark,
+            [
+                Row(track_id="t1", track_name="Song A", artists="A1", track_genre="Pop", duration_ms=None),
+            ],
+        )
         enriched = join_activity_to_catalog(activity, catalog)
         result = compute_genre_metrics(enriched)
         row = result.first()
@@ -139,6 +220,7 @@ class TestComputeGenreMetrics:
 # ---------------------------------------------------------------------------
 # T023/T024: top-N tests
 # ---------------------------------------------------------------------------
+
 
 class TestComputeTopSongs:
     def _enriched(self, spark, rows_catalog=None, rows_activity=None):
@@ -153,11 +235,11 @@ class TestComputeTopSongs:
         ]
         # play counts: t1=5, t2=4, t3=3, t4=2, t5=1
         activity_rows = (
-            [Row(user_id="u1", track_id="t1", listen_time=TS)] * 5 +
-            [Row(user_id="u1", track_id="t2", listen_time=TS)] * 4 +
-            [Row(user_id="u1", track_id="t3", listen_time=TS)] * 3 +
-            [Row(user_id="u1", track_id="t4", listen_time=TS)] * 2 +
-            [Row(user_id="u1", track_id="t5", listen_time=TS)] * 1
+            [Row(user_id="u1", track_id="t1", listen_time=TS)] * 5
+            + [Row(user_id="u1", track_id="t2", listen_time=TS)] * 4
+            + [Row(user_id="u1", track_id="t3", listen_time=TS)] * 3
+            + [Row(user_id="u1", track_id="t4", listen_time=TS)] * 2
+            + [Row(user_id="u1", track_id="t5", listen_time=TS)] * 1
         )
         enriched = self._enriched(spark, catalog_rows, activity_rows)
         result = compute_top_songs(enriched)
@@ -208,22 +290,26 @@ class TestComputeTopGenresPerDay:
         rows = []
         for date_str, genre_data in genre_plays_by_date.items():
             for genre, plays in genre_data.items():
-                rows.append(Row(
-                    date=date_str,
-                    genre=genre,
-                    listen_count=plays,
-                    unique_listener_count=1,
-                    total_listening_time=float(plays * 60),
-                    avg_listening_time_per_user=float(plays * 60),
-                ))
-        schema = StructType([
-            StructField("date", StringType(), False),
-            StructField("genre", StringType(), False),
-            StructField("listen_count", LongType(), False),
-            StructField("unique_listener_count", LongType(), False),
-            StructField("total_listening_time", DoubleType(), False),
-            StructField("avg_listening_time_per_user", DoubleType(), False),
-        ])
+                rows.append(
+                    Row(
+                        date=date_str,
+                        genre=genre,
+                        listen_count=plays,
+                        unique_listener_count=1,
+                        total_listening_time=float(plays * 60),
+                        avg_listening_time_per_user=float(plays * 60),
+                    )
+                )
+        schema = StructType(
+            [
+                StructField("date", StringType(), False),
+                StructField("genre", StringType(), False),
+                StructField("listen_count", LongType(), False),
+                StructField("unique_listener_count", LongType(), False),
+                StructField("total_listening_time", DoubleType(), False),
+                StructField("avg_listening_time_per_user", DoubleType(), False),
+            ]
+        )
         return spark.createDataFrame(rows, schema)
 
     def test_top_5_genres_truncated(self, spark):

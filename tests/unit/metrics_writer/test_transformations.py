@@ -1,11 +1,11 @@
 import decimal
+
 import pytest
 
 from glue_jobs.metrics_writer.transformations import (
-    parquet_rows_to_ddb_items,
     build_transact_batch,
+    parquet_rows_to_ddb_items,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -23,7 +23,7 @@ SAMPLE_ROW = {
         {"song_id": "trk_002", "song_name": "Song B", "listen_count": 65},
     ],
     "top_5_genres": [
-        {"genre_id": "pop",      "genre_name": "Pop",      "listen_count": 9800},
+        {"genre_id": "pop", "genre_name": "Pop", "listen_count": 9800},
         {"genre_id": "acoustic", "genre_name": "Acoustic", "listen_count": 1200},
     ],
 }
@@ -39,14 +39,22 @@ def _make_rows(n=1, **overrides):
 # T010: parquet_rows_to_ddb_items
 # ---------------------------------------------------------------------------
 
+
 class TestParquetRowsToDdbItems:
     def test_basic_field_presence(self):
         items = parquet_rows_to_ddb_items(_make_rows())
         assert len(items) == 1
         item = items[0]
-        for field in ("genre", "date", "listen_count", "unique_listener_count",
-                      "total_listening_time", "avg_listening_time_per_user",
-                      "top_3_songs", "top_5_genres"):
+        for field in (
+            "genre",
+            "date",
+            "listen_count",
+            "unique_listener_count",
+            "total_listening_time",
+            "avg_listening_time_per_user",
+            "top_3_songs",
+            "top_5_genres",
+        ):
             assert field in item, f"missing field: {field}"
 
     def test_string_fields_are_str(self):
@@ -113,11 +121,10 @@ class TestParquetRowsToDdbItems:
 # T011: build_transact_batch
 # ---------------------------------------------------------------------------
 
+
 class TestBuildTransactBatch:
     def _items(self, n=2):
-        return parquet_rows_to_ddb_items(
-            [dict(SAMPLE_ROW, genre=f"genre_{i}") for i in range(n)]
-        )
+        return parquet_rows_to_ddb_items([dict(SAMPLE_ROW, genre=f"genre_{i}") for i in range(n)])
 
     def test_returns_list_of_put_entries(self):
         items = self._items(3)

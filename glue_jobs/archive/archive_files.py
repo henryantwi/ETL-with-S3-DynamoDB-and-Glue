@@ -29,6 +29,7 @@ _logger = logging.getLogger(__name__)
 # Structured logging
 # ---------------------------------------------------------------------------
 
+
 def _log(record: dict) -> None:
     print(json.dumps(record), flush=True)
 
@@ -36,6 +37,7 @@ def _log(record: dict) -> None:
 # ---------------------------------------------------------------------------
 # Core archival logic (importable for unit tests)
 # ---------------------------------------------------------------------------
+
 
 def archive_prefix(
     s3_client,
@@ -62,18 +64,22 @@ def archive_prefix(
                 )
                 s3_client.delete_object(Bucket=raw_bucket, Key=key)
                 archived_count += 1
-                _log({
-                    "event": "file_archived",
-                    "src_bucket": raw_bucket,
-                    "dst_bucket": archive_bucket,
-                    "key": key,
-                })
+                _log(
+                    {
+                        "event": "file_archived",
+                        "src_bucket": raw_bucket,
+                        "dst_bucket": archive_bucket,
+                        "key": key,
+                    }
+                )
             except ClientError as exc:
-                _log({
-                    "event": "archive_error",
-                    "key": key,
-                    "error": str(exc),
-                })
+                _log(
+                    {
+                        "event": "archive_error",
+                        "key": key,
+                        "error": str(exc),
+                    }
+                )
                 raise
 
     return archived_count
@@ -89,24 +95,29 @@ def run_archive(
     total = 0
     for prefix in prefixes:
         count = archive_prefix(s3_client, raw_bucket, archive_bucket, prefix)
-        _log({
-            "event": "prefix_complete",
-            "prefix": prefix,
-            "files_archived": count,
-        })
+        _log(
+            {
+                "event": "prefix_complete",
+                "prefix": prefix,
+                "files_archived": count,
+            }
+        )
         total += count
 
-    _log({
-        "event": "archive_complete",
-        "raw_bucket": raw_bucket,
-        "archive_bucket": archive_bucket,
-        "total_files_archived": total,
-    })
+    _log(
+        {
+            "event": "archive_complete",
+            "raw_bucket": raw_bucket,
+            "archive_bucket": archive_bucket,
+            "total_files_archived": total,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Glue entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     from awsglue.utils import getResolvedOptions  # noqa: PLC0415  (Glue runtime only)
