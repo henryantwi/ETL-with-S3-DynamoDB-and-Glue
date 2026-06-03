@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 import boto3
+import pytest
 from moto import mock_aws
 
 from glue_jobs.validation.validate_files import (
     SCHEMAS,
-    FileSchema,
-    ValidationResult,
     validate_all,
     validate_file,
 )

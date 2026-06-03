@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 import boto3
-from botocore.exceptions import ClientError
+import pytest
 from moto import mock_aws
 
 from glue_jobs.archive.archive_files import archive_prefix, run_archive
@@ -43,6 +42,7 @@ def s3():
 # archive_prefix tests
 # ---------------------------------------------------------------------------
 
+
 def test_files_moved_to_archive(s3):
     _put(s3, RAW_BUCKET, "listening-activity/file1.csv")
     _put(s3, RAW_BUCKET, "listening-activity/file2.csv")
@@ -75,6 +75,7 @@ def test_only_prefix_files_moved(s3):
 # ---------------------------------------------------------------------------
 # run_archive tests
 # ---------------------------------------------------------------------------
+
 
 def test_run_archive_moves_all_prefixes(s3):
     _put(s3, RAW_BUCKET, "listening-activity/streams.csv")

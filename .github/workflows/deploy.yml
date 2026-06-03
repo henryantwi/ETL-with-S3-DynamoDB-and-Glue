@@ -1,0 +1,43 @@
+name: Deploy (terraform apply)
+
+on:
+  workflow_dispatch: {}
+
+# Serialize all applies (no ref suffix) and never cancel an in-flight apply,
+# so two runs can never race the same state/lock.
+concurrency:
+  group: tf-apply
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  TF_BACKEND_BUCKET: terraform-state-559050223770
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: production   # approval gate: configure required reviewer in repo settings
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        run: terraform init -backend-config="bucket=${{ env.TF_BACKEND_BUCKET }}"
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve -input=false
