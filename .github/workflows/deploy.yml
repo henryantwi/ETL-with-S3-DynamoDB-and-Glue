@@ -16,6 +16,9 @@ permissions:
 env:
   AWS_REGION: eu-west-1
   TF_BACKEND_BUCKET: terraform-state-559050223770
+  # Required tf vars (terraform.tfvars is gitignored). Account id is not secret.
+  TF_VAR_bucket_suffix: ${{ vars.BUCKET_SUFFIX }}
+  TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
 
 jobs:
   apply:
