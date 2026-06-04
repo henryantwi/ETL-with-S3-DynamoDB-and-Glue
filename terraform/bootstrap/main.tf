@@ -59,7 +59,8 @@ data "aws_iam_policy_document" "state_write" {
 }
 
 # ---------------------------------------------------------------------------
-# Plan role — read-only, assumed from pull_request runs.
+# Plan role — read-only. Assumed from any repo event (pull_request and push to
+# main both run terraform-plan), so the sub is scoped to the repo, not an event.
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "plan_trust" {
   statement {
@@ -80,7 +81,7 @@ data "aws_iam_policy_document" "plan_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:pull_request"]
+      values   = ["repo:${var.github_repo}:*"]
     }
   }
 }

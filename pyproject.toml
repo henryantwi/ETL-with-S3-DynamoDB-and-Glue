@@ -2,7 +2,7 @@
 name = "music-streaming-etl"
 version = "0.2.0"
 description = "Music streaming ETL pipeline — S3, Glue, Step Functions"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = []
 
 [dependency-groups]
@@ -12,10 +12,10 @@ dev = [
     "pytest>=8.0",
     "moto[dynamodb,s3]>=5.0",
     "ruff>=0.6",
+    # pyspark 3.5.1 requires Python <=3.11, so the project targets 3.11 and the
+    # single CI lint-and-test job runs on 3.11 with a JDK (see ci.yml).
+    "pyspark==3.5.1",
 ]
-# Note: pyspark (==3.5.1) is intentionally NOT declared here. It requires
-# Python <=3.11 while this project targets >=3.12, so the Spark test job in CI
-# installs it into a standalone 3.11 venv (see .github/workflows/ci.yml).
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -23,7 +23,7 @@ python_files = ["smoke_test_*.py", "test_*.py"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py311"
 extend-exclude = [".venv", ".venv-spark", "data"]
 
 [tool.ruff.lint]
