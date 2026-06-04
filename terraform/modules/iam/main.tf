@@ -76,6 +76,8 @@ data "aws_iam_policy_document" "glue_validation" {
     resources = [var.glue_scripts_bucket_arn]
   }
 
+  # Python Shell jobs log to /aws-glue/python-jobs/{output,error} (shared
+  # groups, stream per run id) — /aws-glue/jobs/* alone leaves them logless.
   statement {
     sid    = "GlueJobLogs"
     effect = "Allow"
@@ -84,6 +86,7 @@ data "aws_iam_policy_document" "glue_validation" {
     ]
     resources = [
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/python-jobs/*",
     ]
   }
 
@@ -96,6 +99,7 @@ data "aws_iam_policy_document" "glue_validation" {
     ]
     resources = [
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/*:*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/python-jobs/*:*",
     ]
   }
 }
@@ -292,6 +296,9 @@ data "aws_iam_policy_document" "glue_archive" {
     resources = [
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-archive-files",
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-archive-files:*",
+      # Python Shell jobs log to shared /aws-glue/python-jobs/{output,error}
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/python-jobs/*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/python-jobs/*:*",
     ]
   }
 }
@@ -468,6 +475,9 @@ data "aws_iam_policy_document" "glue_writer" {
     resources = [
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-metrics-writer",
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/jobs/etl-metrics-writer:*",
+      # Python Shell jobs log to shared /aws-glue/python-jobs/{output,error}
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/python-jobs/*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws-glue/python-jobs/*:*",
     ]
   }
 

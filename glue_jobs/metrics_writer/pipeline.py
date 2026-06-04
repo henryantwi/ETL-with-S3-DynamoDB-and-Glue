@@ -100,7 +100,12 @@ def run_pipeline(args: dict, s3=None, ddb=None, cw=None) -> None:
 
     start_ts = time.time()
 
-    prefix = f"output/date={run_date}/"
+    # Read ALL date partitions, not output/date={run_date}/: the genre job
+    # partitions by the DATA's event dates (listen_time), which generally do
+    # not equal the pipeline run date — filtering by run_date reads zero rows
+    # for any historical upload. DynamoDB upserts are idempotent on
+    # (genre, date), so re-loading already-written partitions is harmless.
+    prefix = "output/"
     t0 = time.time()
     rows = _read_parquet_from_s3(s3, processed_bucket, prefix, run_date)
     records_read = len(rows)
