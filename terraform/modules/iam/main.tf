@@ -38,6 +38,26 @@ data "aws_iam_policy_document" "glue_validation" {
     resources = [var.raw_bucket_arn]
   }
 
+  # Quarantine: failed files are copied to rejected/<ts>/<key> and the
+  # original deleted, so bad data cannot re-trigger or block the pipeline.
+  statement {
+    sid    = "WriteRejected"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+    ]
+    resources = ["${var.raw_bucket_arn}/rejected/*"]
+  }
+
+  statement {
+    sid    = "DeleteRejectedSource"
+    effect = "Allow"
+    actions = [
+      "s3:DeleteObject",
+    ]
+    resources = ["${var.raw_bucket_arn}/*"]
+  }
+
   statement {
     sid    = "ReadGlueScripts"
     effect = "Allow"

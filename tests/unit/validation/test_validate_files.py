@@ -8,6 +8,7 @@ from moto import mock_aws
 
 from glue_jobs.validation.validate_files import (
     SCHEMAS,
+    reject_failed_files,
     validate_all,
     validate_file,
 )
@@ -177,3 +178,66 @@ def test_infrastructure_failure_halts_pipeline(s3, monkeypatch):
     result = validate_file(s3, BUCKET, schema)
     assert result.status == "FAIL"
     assert result.failure_reason == "unreadable"
+
+
+# ---------------------------------------------------------------------------
+# Quarantine: failed files move to rejected/
+# ---------------------------------------------------------------------------
+
+
+def _list_keys(s3, prefix: str) -> list[str]:
+    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
+    return [obj["Key"] for obj in resp.get("Contents", [])]
+
+
+def test_bad_header_file_moved_to_rejected(s3):
+    _put(s3, LISTENING_KEY, b"user_id,wrong_col\nu001,x\n")
+    _put(s3, SONGS_KEY, VALID_SONGS)
+    _put(s3, USERS_KEY, VALID_USERS)
+    results = validate_all(s3, BUCKET)
+    rejected = reject_failed_files(s3, BUCKET, results)
+    assert len(rejected) == 1
+    assert rejected[0].startswith("rejected/")
+    assert rejected[0].endswith(LISTENING_KEY)
+    # original gone, quarantined copy exists
+    assert _list_keys(s3, LISTENING_KEY) == []
+    assert _list_keys(s3, rejected[0]) == [rejected[0]]
+
+
+def test_empty_file_moved_to_rejected(s3):
+    _put(s3, SONGS_KEY, b"")
+    results = [validate_file(s3, BUCKET, SCHEMAS[1])]
+    rejected = reject_failed_files(s3, BUCKET, results)
+    assert len(rejected) == 1
+    assert _list_keys(s3, SONGS_KEY) == []
+
+
+def test_missing_file_nothing_to_reject(s3):
+    # nothing uploaded at all — three 'missing' failures, no objects to move
+    results = validate_all(s3, BUCKET)
+    rejected = reject_failed_files(s3, BUCKET, results)
+    assert rejected == []
+    assert _list_keys(s3, "rejected/") == []
+
+
+def test_passing_files_not_rejected(s3):
+    _put(s3, LISTENING_KEY, VALID_LISTENING)
+    _put(s3, SONGS_KEY, VALID_SONGS)
+    _put(s3, USERS_KEY, VALID_USERS)
+    results = validate_all(s3, BUCKET)
+    rejected = reject_failed_files(s3, BUCKET, results)
+    assert rejected == []
+    assert _list_keys(s3, LISTENING_KEY) == [LISTENING_KEY]
+    assert _list_keys(s3, SONGS_KEY) == [SONGS_KEY]
+    assert _list_keys(s3, USERS_KEY) == [USERS_KEY]
+
+
+def test_only_failed_files_rejected_good_ones_stay(s3):
+    _put(s3, LISTENING_KEY, b"user_id,wrong\n")
+    _put(s3, SONGS_KEY, VALID_SONGS)
+    _put(s3, USERS_KEY, VALID_USERS)
+    results = validate_all(s3, BUCKET)
+    reject_failed_files(s3, BUCKET, results)
+    assert _list_keys(s3, LISTENING_KEY) == []
+    assert _list_keys(s3, SONGS_KEY) == [SONGS_KEY]
+    assert _list_keys(s3, USERS_KEY) == [USERS_KEY]
