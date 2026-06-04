@@ -2,20 +2,37 @@
 
 How to feed the pipeline, in what order, and what breaks when you get it wrong.
 
-## TL;DR
+## TL;DR (using this repo's data/ files)
 
 ```powershell
 $RAW = "raw-data-etl-dev-559050223770"
 
 # 1. Reference data FIRST (these do NOT trigger anything)
-aws s3 cp songs.csv s3://$RAW/song-catalog/songs.csv
-aws s3 cp users.csv s3://$RAW/user-profiles/users.csv
+aws s3 cp data/songs/songs.csv s3://$RAW/song-catalog/songs.csv
+aws s3 cp data/users/users.csv s3://$RAW/user-profiles/users.csv
 
-# 2. Listening activity LAST (this TRIGGERS the pipeline)
-aws s3 cp listening.csv s3://$RAW/listening-activity/listening.csv
+# 2. Combine the stream files into ONE upload (see why below), LAST — this TRIGGERS the pipeline
+Get-Content data/streams/streams1.csv | Set-Content streams_all.csv
+Get-Content data/streams/streams2.csv | Select-Object -Skip 1 | Add-Content streams_all.csv
+Get-Content data/streams/streams3.csv | Select-Object -Skip 1 | Add-Content streams_all.csv
+aws s3 cp streams_all.csv s3://$RAW/listening-activity/streams_all.csv
 ```
 
 Upload to `listening-activity/` is the ignition key. Everything else must already be in place when you turn it.
+
+**Filenames don't matter — prefixes do.** EventBridge matches the S3 *key
+prefix* `listening-activity/`, not any filename. `streams1.csv`,
+`streams_all.csv`, `foo.csv` — all trigger equally, as long as the object key
+starts with `listening-activity/` and ends `.csv`. Likewise your local folder
+names (`data/streams/`, `data/songs/`, `data/users/`) are irrelevant — what
+counts is the S3 destination prefix you copy them TO.
+
+**Why combine the 3 stream files?** Each individual upload under
+`listening-activity/` fires its own pipeline execution. Uploading
+streams1/2/3 separately = 3 concurrent runs racing each other (and each run
+processes ALL files under the prefix anyway, so you'd compute the same thing
+3×). One combined file = one clean run. The headers are identical, so
+concatenation (skipping the repeated header rows) is safe.
 
 ---
 
