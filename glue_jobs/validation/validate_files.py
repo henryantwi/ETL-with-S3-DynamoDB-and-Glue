@@ -20,6 +20,7 @@ import json
 import logging
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import boto3
@@ -206,6 +207,40 @@ def validate_all(s3_client, bucket: str, schemas: list[FileSchema] | None = None
     return [validate_file(s3_client, bucket, schema) for schema in schemas]
 
 
+def reject_failed_files(s3_client, bucket: str, results: list[ValidationResult]) -> list[str]:
+    """Quarantine each failed file that actually exists into rejected/<utc-ts>/<original-key>.
+
+    'missing' failures have no object to move and are skipped. The rejected/
+    prefix never matches the EventBridge trigger, so quarantined files cannot
+    re-fire the pipeline. Returns the list of rejected destination keys.
+    """
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    rejected: list[str] = []
+    for result in results:
+        if result.status != "FAIL":
+            continue
+        key = result.file_key
+        # No object uploaded for this type — prefix placeholder, nothing to move.
+        if key.endswith("/") or "<pending>" in key:
+            continue
+        dst = f"rejected/{ts}/{key}"
+        s3_client.copy_object(Bucket=bucket, CopySource={"Bucket": bucket, "Key": key}, Key=dst)
+        s3_client.delete_object(Bucket=bucket, Key=key)
+        _logger.error(
+            json.dumps(
+                {
+                    "job": "etl-validate-files",
+                    "action": "rejected",
+                    "file_key": key,
+                    "rejected_key": dst,
+                    "failure_reason": result.failure_reason,
+                }
+            )
+        )
+        rejected.append(dst)
+    return rejected
+
+
 # ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
@@ -248,6 +283,7 @@ def main() -> None:
 
     failures = [r for r in results if r.status == "FAIL"]
     if failures:
+        reject_failed_files(s3, bucket, results)
         summary = "; ".join(f"{r.file_type}: {r.failure_reason} {r.missing_fields or ''}" for r in failures)
         raise ValueError(f"Validation failed for {len(failures)} file(s): {summary}")
 
