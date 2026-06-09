@@ -14,6 +14,7 @@ REQUIRED_ENV = {
     "PROCESSED_BUCKET": "processed-data-etl-dev-x",
     "METRICS_TABLE": "MusicKPIs",
     "WAIT_SECONDS": "60",
+    "AWS_DEFAULT_REGION": "eu-west-1",
 }
 
 
