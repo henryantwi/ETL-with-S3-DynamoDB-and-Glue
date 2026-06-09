@@ -101,20 +101,14 @@ aws s3 ls s3://$(terraform -chdir=terraform output -raw archive_bucket_arn | sed
 
 ## Architecture
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│  raw-data   │────>│ EventBridge  │────>│ Step Functions  │
-│   (S3)      │     │   (trigger)  │     │  etl-pipeline   │
-└─────────────┘     └──────────────┘     └─────────────────┘
-                                                  │
-                    ┌─────────────┬───────────────┼─────────────┐
-                    ▼             ▼               ▼             ▼
-             ┌──────────┐ ┌──────────┐   ┌──────────┐   ┌──────────┐
-             │ Validate │ │Transform │   │  Load    │   │ Archive  │
-             │  Files   │ │ Metrics  │   │ DynamoDB │   │  Files   │
-             │(PyShell) │ │(PySpark) │   │(PyShell) │   │(PyShell) │
-             └──────────┘ └──────────┘   └──────────┘   └──────────┘
-```
+![End-to-end ETL architecture: S3 uploads trigger an EventBridge → SQS → Dispatcher Lambda chain that coalesces and serializes runs into the Step Functions pipeline (validate → transform → load → archive), landing daily KPIs in DynamoDB.](Music_ETL_Architecture.drawio.png)
+
+A burst of `listening-activity/` uploads fires the **EventBridge** rule, which
+queues events in **SQS**. The **dispatcher Lambda** coalesces the burst into a
+single run and serializes execution (never more than one pipeline RUNNING) before
+starting the **Step Functions** state machine: **Validate → Transform → Load →
+Archive**. Results land in the **DynamoDB `MusicKPIs`** table; raw inputs move to
+the archive bucket. See [`GUIDE.md`](GUIDE.md) for a full plain-English walkthrough.
 
 ---
 
@@ -168,7 +162,7 @@ pytest tests/unit/metrics_writer/
 | **Atomic batch writes** | `TransactWriteItems` (≤25 items/batch) ensures all-or-nothing |
 | **Least-priv IAM** | Each Glue job has dedicated role scoped to required resources only |
 | **CloudWatch logging** | All jobs emit structured JSON logs and CloudWatch metrics |
-| **S3 → EventBridge** | Real-time trigger without polling or Lambda |
+| **S3 → EventBridge → SQS → Lambda** | Real-time trigger; the queue + dispatcher coalesce a burst of uploads into one run and serialize executions so runs never overlap |
 
 ---
 

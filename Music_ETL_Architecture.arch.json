@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "title": "Music KPI ETL Architecture",
+  "type": "module-diagram",
+  "source": "edited",
+  "profile": "default",
+  "theme": "tech-blue",
+  "layout": "horizontal",
+  "counts": {
+    "nodes": 37,
+    "edges": 26,
+    "modules": 2
+  },
+  "nodes": [
+    {
+      "id": "ntitle",
+      "label": "Music Listening KPI &#8212; End-to-End ETL Architecture",
+      "type": "terminal",
+      "size": "xl"
+    },
+    {
+      "id": "nsources-box",
+      "label": "Data Sources (CSV uploads)",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "nsrc-listening",
+      "label": "listening-activity.csv",
+      "type": "service",
+      "icon": "aws.documents",
+      "size": "small"
+    },
+    {
+      "id": "nsrc-catalog",
+      "label": "song-catalog.csv",
+      "type": "document",
+      "icon": "aws.documents",
+      "size": "small"
+    },
+    {
+      "id": "nsrc-users",
+      "label": "user-profiles.csv",
+      "type": "user",
+      "icon": "aws.documents",
+      "size": "small"
+    },
+    {
+      "id": "ngovern-box",
+      "label": "ngovern-box",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nhdr-govern",
+      "label": "ORCHESTRATION, OBSERVABILITY &amp; GOVERNANCE",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "neventbridge",
+      "label": "EventBridge Rule&#xa;etl-s3-listening-&#xa;activity-uploaded",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.eventbridge",
+      "size": "small"
+    },
+    {
+      "id": "nstep-functions",
+      "label": "Step Functions&#xa;etl-pipeline",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.step_functions",
+      "size": "small"
+    },
+    {
+      "id": "nsqs-dispatch",
+      "label": "SQS&#xa;pipeline-dispatch&#xa;(coalesce queue)",
+      "type": "internet",
+      "module": "mregion",
+      "icon": "aws.simple_queue_service",
+      "size": "small"
+    },
+    {
+      "id": "nsqs-dlq",
+      "label": "SQS DLQ&#xa;pipeline-dispatch-dlq&#xa;(after 50 receives)",
+      "type": "internet",
+      "module": "mregion",
+      "icon": "aws.simple_queue_service",
+      "size": "small"
+    },
+    {
+      "id": "ndispatcher-lambda",
+      "label": "Dispatcher Lambda&#xa;serialize (1 RUNNING)&#xa;coalesce 90s window",
+      "type": "internet",
+      "module": "mregion",
+      "icon": "aws.lambda",
+      "size": "small"
+    },
+    {
+      "id": "ncloudwatch",
+      "label": "CloudWatch&#xa;Logs + Metrics",
+      "type": "document",
+      "module": "mregion",
+      "icon": "aws.cloudwatch",
+      "size": "small"
+    },
+    {
+      "id": "nsns",
+      "label": "SNS&#xa;pipeline-alerts",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.simple_notification_service",
+      "size": "small"
+    },
+    {
+      "id": "niam",
+      "label": "IAM&#xa;Least-Privilege Roles",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.identity_and_access_management",
+      "size": "small"
+    },
+    {
+      "id": "nkms",
+      "label": "SSE&#xa;Encryption at Rest",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.key_management_service",
+      "size": "small"
+    },
+    {
+      "id": "ningest-box",
+      "label": "ningest-box",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nhdr-ingest",
+      "label": "INGESTION",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nraw-s3",
+      "label": "S3 raw-data&#xa;(3 prefixes)&#xa;Versioned, SSE-S3",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.s3",
+      "size": "small"
+    },
+    {
+      "id": "nproc-box",
+      "label": "nproc-box",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nhdr-proc",
+      "label": "PROCESSING &#8212; AWS Glue Jobs (sequential, orchestrated by Step Functions)",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nglue-validate",
+      "label": "1. etl-validate-files &#xa;Python Shell&#xa;header schema check",
+      "type": "decision",
+      "module": "mregion",
+      "icon": "aws.glue",
+      "size": "small"
+    },
+    {
+      "id": "nglue-transform",
+      "label": "2. etl-genre-metrics &#xa;PySpark (G.1X x2)&#xa;join + aggregate",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.glue",
+      "size": "small"
+    },
+    {
+      "id": "nglue-writer",
+      "label": "3. etl-metrics-writer &#xa;Python Shell&#xa;TransactWriteItems",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.glue",
+      "size": "small"
+    },
+    {
+      "id": "nglue-archive",
+      "label": "4. etl-archive-files &#xa;Python Shell&#xa;copy + delete",
+      "type": "document",
+      "module": "mregion",
+      "icon": "aws.glue",
+      "size": "small"
+    },
+    {
+      "id": "nscripts-s3",
+      "label": "S3 glue-scripts&#xa;(job code)",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.s3",
+      "size": "small"
+    },
+    {
+      "id": "nprocessed-s3",
+      "label": "S3 processed-data&#xa;Parquet date/genre&#xa;SSE-S3",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.s3",
+      "size": "small"
+    },
+    {
+      "id": "narchive-s3",
+      "label": "S3 archive&#xa;Glacier @90d&#xa;Expire @365d",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.s3",
+      "size": "small"
+    },
+    {
+      "id": "nstore-box",
+      "label": "nstore-box",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nhdr-store",
+      "label": "SERVING STORE",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "ndynamodb",
+      "label": "DynamoDB MusicKPIs&#xa;PK genre / SK date&#xa;PAY_PER_REQUEST, PITR",
+      "type": "database",
+      "module": "mregion",
+      "icon": "aws.dynamodb",
+      "size": "small"
+    },
+    {
+      "id": "nconsumer-box",
+      "label": "nconsumer-box",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nhdr-consumers",
+      "label": "CONSUMERS",
+      "type": "service",
+      "module": "mregion",
+      "size": "xl"
+    },
+    {
+      "id": "nreader-policy",
+      "label": "metrics-reader-policy&#xa;GetItem / Query only",
+      "type": "service",
+      "module": "mregion",
+      "icon": "aws.identity_and_access_management",
+      "size": "small"
+    },
+    {
+      "id": "npowerbi",
+      "label": "Power BI / BI Dashboards",
+      "type": "service",
+      "module": "mregion",
+      "size": "small"
+    },
+    {
+      "id": "napps",
+      "label": "Reporting Apps&#xa;& Recommendation&#xa;Engines",
+      "type": "terminal",
+      "module": "mregion",
+      "size": "medium"
+    },
+    {
+      "id": "nlegend",
+      "label": "Legend &#xa;Blue: data flow&#xa;Black: job sequence&#xa;Pink: event trigger&#xa;Purple: orchestration&#xa;Orange: observability&#xa;Red: IAM grants",
+      "type": "terminal",
+      "size": "xl"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "from": "nsources-box",
+      "to": "nraw-s3",
+      "type": "primary",
+      "label": "upload"
+    },
+    {
+      "id": "edge-2",
+      "from": "nraw-s3",
+      "to": "neventbridge",
+      "type": "data",
+      "label": "ObjectCreated"
+    },
+    {
+      "id": "edge-3",
+      "from": "neventbridge",
+      "to": "nsqs-dispatch",
+      "type": "primary",
+      "label": "SendMessage"
+    },
+    {
+      "id": "edge-4",
+      "from": "nsqs-dispatch",
+      "to": "ndispatcher-lambda",
+      "type": "primary",
+      "label": "batch (100 / 90s)"
+    },
+    {
+      "id": "edge-5",
+      "from": "ndispatcher-lambda",
+      "to": "nstep-functions",
+      "type": "primary",
+      "label": "StartExecution&#xa;(if no RUNNING)"
+    },
+    {
+      "id": "edge-6",
+      "from": "nsqs-dispatch",
+      "to": "nsqs-dlq",
+      "type": "data",
+      "label": "dead-letter"
+    },
+    {
+      "id": "edge-7",
+      "from": "nstep-functions",
+      "to": "nglue-validate",
+      "type": "data"
+    },
+    {
+      "id": "edge-8",
+      "from": "nstep-functions",
+      "to": "nglue-transform",
+      "type": "data",
+      "label": "invokes"
+    },
+    {
+      "id": "edge-9",
+      "from": "nstep-functions",
+      "to": "nglue-writer",
+      "type": "data"
+    },
+    {
+      "id": "edge-10",
+      "from": "nstep-functions",
+      "to": "nglue-archive",
+      "type": "data"
+    },
+    {
+      "id": "edge-11",
+      "from": "nglue-validate",
+      "to": "nglue-transform",
+      "type": "primary"
+    },
+    {
+      "id": "edge-12",
+      "from": "nglue-transform",
+      "to": "nglue-writer",
+      "type": "primary"
+    },
+    {
+      "id": "edge-13",
+      "from": "nglue-writer",
+      "to": "nglue-archive",
+      "type": "primary"
+    },
+    {
+      "id": "edge-14",
+      "from": "nraw-s3",
+      "to": "nglue-validate",
+      "type": "primary",
+      "label": "read headers"
+    },
+    {
+      "id": "edge-15",
+      "from": "nraw-s3",
+      "to": "nglue-transform",
+      "type": "primary",
+      "label": "read CSV"
+    },
+    {
+      "id": "edge-16",
+      "from": "nglue-transform",
+      "to": "nprocessed-s3",
+      "type": "primary",
+      "label": "write Parquet"
+    },
+    {
+      "id": "edge-17",
+      "from": "nprocessed-s3",
+      "to": "nglue-writer",
+      "type": "primary",
+      "label": "read Parquet"
+    },
+    {
+      "id": "edge-18",
+      "from": "nglue-writer",
+      "to": "ndynamodb",
+      "type": "primary",
+      "label": "TransactWriteItems"
+    },
+    {
+      "id": "edge-19",
+      "from": "nglue-archive",
+      "to": "narchive-s3",
+      "type": "primary",
+      "label": "copy + delete"
+    },
+    {
+      "id": "edge-20",
+      "from": "nglue-archive",
+      "to": "nraw-s3",
+      "type": "data",
+      "label": "purge raw"
+    },
+    {
+      "id": "edge-21",
+      "from": "nscripts-s3",
+      "to": "nglue-transform",
+      "type": "data",
+      "label": "load script"
+    },
+    {
+      "id": "edge-22",
+      "from": "ndynamodb",
+      "to": "npowerbi",
+      "type": "primary",
+      "label": "GetItem / Query"
+    },
+    {
+      "id": "edge-23",
+      "from": "ndynamodb",
+      "to": "napps",
+      "type": "primary"
+    },
+    {
+      "id": "edge-24",
+      "from": "nreader-policy",
+      "to": "ndynamodb",
+      "type": "optional",
+      "label": "read-only grant"
+    },
+    {
+      "id": "edge-25",
+      "from": "nproc-box",
+      "to": "ncloudwatch",
+      "type": "data",
+      "label": "logs + metrics"
+    },
+    {
+      "id": "edge-26",
+      "from": "ncloudwatch",
+      "to": "nsns",
+      "type": "data",
+      "label": "alarm"
+    }
+  ],
+  "modules": [
+    {
+      "id": "maws-cloud",
+      "label": "AWS Cloud"
+    },
+    {
+      "id": "mregion",
+      "label": "Region"
+    }
+  ]
+}

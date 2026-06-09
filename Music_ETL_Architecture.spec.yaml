@@ -1,0 +1,816 @@
+meta:
+  theme: tech-blue
+  layout: horizontal
+  source: edited
+  title: Music KPI ETL Architecture
+modules:
+  - id: maws-cloud
+    label: AWS Cloud
+  - id: mregion
+    label: Region
+    style:
+      dashed: true
+nodes:
+  - id: ntitle
+    label: Music Listening KPI &#8212; End-to-End ETL Architecture
+    type: terminal
+    position:
+      x: 1304
+      'y': 48
+    size: xl
+    style:
+      fontSize: 22
+  - id: nsources-box
+    label: Data Sources (CSV uploads)
+    type: service
+    position:
+      x: 160
+      'y': 720
+    size: xl
+    style:
+      fillColor: '#FFF8E7'
+      strokeColor: '#BA7517'
+      strokeWidth: 2
+      fontSize: 13
+  - id: nsrc-listening
+    label: listening-activity.csv
+    type: service
+    icon: aws.documents
+    position:
+      x: 136
+      'y': 632
+    size: small
+    style:
+      fillColor: '#5294CF'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nsrc-catalog
+    label: song-catalog.csv
+    type: document
+    icon: aws.documents
+    position:
+      x: 136
+      'y': 728
+    size: small
+    style:
+      fillColor: '#5294CF'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nsrc-users
+    label: user-profiles.csv
+    type: user
+    icon: aws.documents
+    position:
+      x: 136
+      'y': 832
+    size: small
+    style:
+      fillColor: '#5294CF'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: ngovern-box
+    label: ngovern-box
+    type: service
+    module: mregion
+    position:
+      x: 1024
+      'y': 200
+    size: xl
+    style:
+      fillColor: '#FFF8E7'
+      strokeColor: '#BA7517'
+      strokeWidth: 2
+      fontSize: 12
+  - id: nhdr-govern
+    label: ORCHESTRATION, OBSERVABILITY &amp; GOVERNANCE
+    type: service
+    module: mregion
+    position:
+      x: 384
+      'y': 112
+    size: xl
+    style:
+      fontSize: 14
+  - id: neventbridge
+    label: EventBridge Rule&#xa;etl-s3-listening-&#xa;activity-uploaded
+    type: service
+    icon: aws.eventbridge
+    module: mregion
+    position:
+      x: 168
+      'y': 176
+    size: small
+    style:
+      fillColor: '#E7157B'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nstep-functions
+    label: Step Functions&#xa;etl-pipeline
+    type: service
+    icon: aws.step_functions
+    module: mregion
+    position:
+      x: 672
+      'y': 176
+    size: small
+    style:
+      fillColor: '#E7157B'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nsqs-dispatch
+    label: SQS&#xa;pipeline-dispatch&#xa;(coalesce queue)
+    type: internet
+    icon: aws.simple_queue_service
+    module: mregion
+    position:
+      x: 304
+      'y': 176
+    size: small
+    style:
+      fillColor: '#E7157B'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nsqs-dlq
+    label: SQS DLQ&#xa;pipeline-dispatch-dlq&#xa;(after 50 receives)
+    type: internet
+    icon: aws.simple_queue_service
+    module: mregion
+    position:
+      x: 304
+      'y': 256
+    size: small
+    style:
+      fillColor: '#E7157B'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 10
+  - id: ndispatcher-lambda
+    label: Dispatcher Lambda&#xa;serialize (1 RUNNING)&#xa;coalesce 90s window
+    type: internet
+    icon: aws.lambda
+    module: mregion
+    position:
+      x: 496
+      'y': 176
+    size: small
+    style:
+      fillColor: '#ED7100'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: ncloudwatch
+    label: CloudWatch&#xa;Logs + Metrics
+    type: document
+    icon: aws.cloudwatch
+    module: mregion
+    position:
+      x: 1256
+      'y': 176
+    size: small
+    style:
+      fillColor: '#E7157B'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nsns
+    label: SNS&#xa;pipeline-alerts
+    type: service
+    icon: aws.simple_notification_service
+    module: mregion
+    position:
+      x: 1456
+      'y': 176
+    size: small
+    style:
+      fillColor: '#E7157B'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: niam
+    label: IAM&#xa;Least-Privilege Roles
+    type: service
+    icon: aws.identity_and_access_management
+    module: mregion
+    position:
+      x: 1696
+      'y': 176
+    size: small
+    style:
+      fillColor: '#DD344C'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nkms
+    label: SSE&#xa;Encryption at Rest
+    type: service
+    icon: aws.key_management_service
+    module: mregion
+    position:
+      x: 1872
+      'y': 176
+    size: small
+    style:
+      fillColor: '#DD344C'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: ningest-box
+    label: ningest-box
+    type: service
+    module: mregion
+    position:
+      x: 200
+      'y': 592
+    size: xl
+    style:
+      strokeColor: '#000000'
+      strokeWidth: 3
+      fontSize: 12
+  - id: nhdr-ingest
+    label: INGESTION
+    type: service
+    module: mregion
+    position:
+      x: 200
+      'y': 840
+    size: xl
+    style:
+      fontSize: 14
+  - id: nraw-s3
+    label: S3 raw-data&#xa;(3 prefixes)&#xa;Versioned, SSE-S3
+    type: service
+    icon: aws.s3
+    module: mregion
+    position:
+      x: 200
+      'y': 560
+    size: small
+    style:
+      fillColor: '#7AA116'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 12
+  - id: nproc-box
+    label: nproc-box
+    type: service
+    module: mregion
+    position:
+      x: 808
+      'y': 592
+    size: xl
+    style:
+      strokeColor: '#000000'
+      strokeWidth: 3
+      fontSize: 12
+  - id: nhdr-proc
+    label: PROCESSING &#8212; AWS Glue Jobs (sequential, orchestrated by Step Functions)
+    type: service
+    module: mregion
+    position:
+      x: 808
+      'y': 840
+    size: xl
+    style:
+      fontSize: 14
+  - id: nglue-validate
+    label: 1. etl-validate-files &#xa;Python Shell&#xa;header schema check
+    type: decision
+    icon: aws.glue
+    module: mregion
+    position:
+      x: 448
+      'y': 472
+    size: small
+    style:
+      fillColor: '#8C4FFF'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nglue-transform
+    label: 2. etl-genre-metrics &#xa;PySpark (G.1X x2)&#xa;join + aggregate
+    type: service
+    icon: aws.glue
+    module: mregion
+    position:
+      x: 672
+      'y': 472
+    size: small
+    style:
+      fillColor: '#8C4FFF'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nglue-writer
+    label: 3. etl-metrics-writer &#xa;Python Shell&#xa;TransactWriteItems
+    type: service
+    icon: aws.glue
+    module: mregion
+    position:
+      x: 904
+      'y': 472
+    size: small
+    style:
+      fillColor: '#8C4FFF'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nglue-archive
+    label: 4. etl-archive-files &#xa;Python Shell&#xa;copy + delete
+    type: document
+    icon: aws.glue
+    module: mregion
+    position:
+      x: 1136
+      'y': 472
+    size: small
+    style:
+      fillColor: '#8C4FFF'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nscripts-s3
+    label: S3 glue-scripts&#xa;(job code)
+    type: service
+    icon: aws.s3
+    module: mregion
+    position:
+      x: 792
+      'y': 696
+    size: small
+    style:
+      fillColor: '#7AA116'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nprocessed-s3
+    label: S3 processed-data&#xa;Parquet date/genre&#xa;SSE-S3
+    type: service
+    icon: aws.s3
+    module: mregion
+    position:
+      x: 672
+      'y': 696
+    size: small
+    style:
+      fillColor: '#7AA116'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: narchive-s3
+    label: S3 archive&#xa;Glacier @90d&#xa;Expire @365d
+    type: service
+    icon: aws.s3
+    module: mregion
+    position:
+      x: 1136
+      'y': 696
+    size: small
+    style:
+      fillColor: '#7AA116'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: nstore-box
+    label: nstore-box
+    type: service
+    module: mregion
+    position:
+      x: 1440
+      'y': 592
+    size: xl
+    style:
+      strokeColor: '#000000'
+      strokeWidth: 3
+      fontSize: 12
+  - id: nhdr-store
+    label: SERVING STORE
+    type: service
+    module: mregion
+    position:
+      x: 1440
+      'y': 840
+    size: xl
+    style:
+      fontSize: 14
+  - id: ndynamodb
+    label: DynamoDB MusicKPIs&#xa;PK genre / SK date&#xa;PAY_PER_REQUEST, PITR
+    type: database
+    icon: aws.dynamodb
+    module: mregion
+    position:
+      x: 1440
+      'y': 568
+    size: small
+    style:
+      fillColor: '#C925D1'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 12
+  - id: nconsumer-box
+    label: nconsumer-box
+    type: service
+    module: mregion
+    position:
+      x: 1792
+      'y': 592
+    size: xl
+    style:
+      strokeColor: '#000000'
+      strokeWidth: 3
+      fontSize: 12
+  - id: nhdr-consumers
+    label: CONSUMERS
+    type: service
+    module: mregion
+    position:
+      x: 1792
+      'y': 840
+    size: xl
+    style:
+      fontSize: 14
+  - id: nreader-policy
+    label: metrics-reader-policy&#xa;GetItem / Query only
+    type: service
+    icon: aws.identity_and_access_management
+    module: mregion
+    position:
+      x: 1704
+      'y': 448
+    size: small
+    style:
+      fillColor: '#DD344C'
+      strokeColor: '#ffffff'
+      fontColor: '#232F3E'
+      fontSize: 11
+  - id: npowerbi
+    label: Power BI / BI Dashboards
+    type: service
+    module: mregion
+    position:
+      x: 1712
+      'y': 584
+    size: small
+    style:
+      fontSize: 12
+  - id: napps
+    label: Reporting Apps&#xa;& Recommendation&#xa;Engines
+    type: terminal
+    module: mregion
+    position:
+      x: 1872
+      'y': 568
+    size: medium
+    style:
+      fillColor: '#E6F2FB'
+      strokeColor: '#147EBA'
+      fontSize: 12
+  - id: nlegend
+    label: >-
+      Legend &#xa;Blue: data flow&#xa;Black: job sequence&#xa;Pink: event trigger&#xa;Purple: orchestration&#xa;Orange:
+      observability&#xa;Red: IAM grants
+    type: terminal
+    position:
+      x: 576
+      'y': 1192
+    size: xl
+    style:
+      fillColor: '#F7F7F7'
+      strokeColor: '#B0B0B0'
+      fontSize: 11
+edges:
+  - from: nsources-box
+    to: nraw-s3
+    type: primary
+    label: upload
+    style:
+      strokeColor: '#879196'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+  - from: nraw-s3
+    to: neventbridge
+    type: data
+    label: ObjectCreated
+    style:
+      strokeColor: '#E7157B'
+      strokeWidth: 2
+      dashed: true
+      endArrow: classic
+      endFill: true
+  - from: neventbridge
+    to: nsqs-dispatch
+    type: primary
+    label: SendMessage
+    style:
+      strokeColor: '#E7157B'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      entryX: 0
+      entryY: 0.5
+  - from: nsqs-dispatch
+    to: ndispatcher-lambda
+    type: primary
+    label: batch (100 / 90s)
+    style:
+      strokeColor: '#E7157B'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      entryX: 0
+      entryY: 0.5
+  - from: ndispatcher-lambda
+    to: nstep-functions
+    type: primary
+    label: StartExecution&#xa;(if no RUNNING)
+    style:
+      strokeColor: '#E7157B'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      entryX: 0
+      entryY: 0.5
+  - from: nsqs-dispatch
+    to: nsqs-dlq
+    type: data
+    label: dead-letter
+    style:
+      strokeColor: '#888780'
+      strokeWidth: 1
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.5
+      exitY: 1
+      entryX: 0.5
+      entryY: 0
+  - from: nstep-functions
+    to: nglue-validate
+    type: data
+    style:
+      strokeColor: '#534AB7'
+      strokeWidth: 2
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.25
+      exitY: 1
+      exitDx: 0
+      exitDy: 0
+      entryX: 0.25
+      entryY: 0
+      entryDx: 0
+      entryDy: 0
+  - from: nstep-functions
+    to: nglue-transform
+    type: data
+    label: invokes
+    style:
+      strokeColor: '#534AB7'
+      strokeWidth: 2
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.5
+      exitY: 1
+      exitDx: 0
+      exitDy: 0
+      entryX: 0.25
+      entryY: 0
+      entryDx: 0
+      entryDy: 0
+  - from: nstep-functions
+    to: nglue-writer
+    type: data
+    style:
+      strokeColor: '#534AB7'
+      strokeWidth: 2
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.6
+      exitY: 1
+      exitDx: 0
+      exitDy: 0
+      entryX: 0.25
+      entryY: 0
+      entryDx: 0
+      entryDy: 0
+  - from: nstep-functions
+    to: nglue-archive
+    type: data
+    style:
+      strokeColor: '#534AB7'
+      strokeWidth: 2
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.75
+      exitY: 1
+      exitDx: 0
+      exitDy: 0
+      entryX: 0.25
+      entryY: 0
+      entryDx: 0
+      entryDy: 0
+  - from: nglue-validate
+    to: nglue-transform
+    type: primary
+    style:
+      strokeColor: '#232F3E'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      entryX: 0
+      entryY: 0.5
+  - from: nglue-transform
+    to: nglue-writer
+    type: primary
+    style:
+      strokeColor: '#232F3E'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      entryX: 0
+      entryY: 0.5
+  - from: nglue-writer
+    to: nglue-archive
+    type: primary
+    style:
+      strokeColor: '#232F3E'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.25
+      entryX: 0
+      entryY: 0.5
+  - from: nraw-s3
+    to: nglue-validate
+    type: primary
+    label: read headers
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+  - from: nraw-s3
+    to: nglue-transform
+    type: primary
+    label: read CSV
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+    waypoints:
+      - x: 232
+        'y': 600
+      - x: 635
+        'y': 600
+  - from: nglue-transform
+    to: nprocessed-s3
+    type: primary
+    label: write Parquet
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 0.5
+      exitY: 1
+      entryX: 0.5
+      entryY: 0
+  - from: nprocessed-s3
+    to: nglue-writer
+    type: primary
+    label: read Parquet
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+    waypoints:
+      - x: 785
+        'y': 675
+      - x: 865
+        'y': 540
+  - from: nglue-writer
+    to: ndynamodb
+    type: primary
+    label: TransactWriteItems
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 1
+      exitY: 0.75
+      entryX: 0
+      entryY: 0.5
+  - from: nglue-archive
+    to: narchive-s3
+    type: primary
+    label: copy + delete
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+      exitX: 0.5
+      exitY: 1
+      entryX: 0.5
+      entryY: 0
+  - from: nglue-archive
+    to: nraw-s3
+    type: data
+    label: purge raw
+    style:
+      strokeColor: '#888780'
+      strokeWidth: 1
+      dashed: true
+      endArrow: classic
+      endFill: true
+    waypoints:
+      - x: 1095
+        'y': 760
+      - x: 160
+        'y': 760
+  - from: nscripts-s3
+    to: nglue-transform
+    type: data
+    label: load script
+    style:
+      strokeColor: '#888780'
+      strokeWidth: 1
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.5
+      exitY: 0
+      entryX: 0.5
+      entryY: 1
+  - from: ndynamodb
+    to: npowerbi
+    type: primary
+    label: GetItem / Query
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+  - from: ndynamodb
+    to: napps
+    type: primary
+    style:
+      strokeColor: '#3399FF'
+      strokeWidth: 2
+      endArrow: classic
+      endFill: true
+  - from: nreader-policy
+    to: ndynamodb
+    type: optional
+    label: read-only grant
+    style:
+      strokeColor: '#DD344C'
+      strokeWidth: 1
+      dashed: true
+      endArrow: open
+      endFill: false
+  - from: nproc-box
+    to: ncloudwatch
+    type: data
+    label: logs + metrics
+    style:
+      strokeColor: '#D85A30'
+      strokeWidth: 1
+      dashed: true
+      endArrow: classic
+      endFill: true
+      exitX: 0.75
+      exitY: 0
+      entryX: 0.5
+      entryY: 1
+  - from: ncloudwatch
+    to: nsns
+    type: data
+    label: alarm
+    style:
+      strokeColor: '#D85A30'
+      strokeWidth: 1
+      dashed: true
+      endArrow: classic
+      endFill: true
