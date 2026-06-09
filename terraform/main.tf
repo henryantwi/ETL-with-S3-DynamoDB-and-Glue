@@ -277,46 +277,6 @@ resource "aws_s3_bucket_notification" "raw_data_eventbridge" {
   eventbridge = true
 }
 
-data "aws_iam_policy_document" "eventbridge_trust" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["events.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "eventbridge_sfn" {
-  name               = "etl-eventbridge-sfn-role"
-  assume_role_policy = data.aws_iam_policy_document.eventbridge_trust.json
-}
-
-data "aws_iam_policy_document" "eventbridge_sfn" {
-  statement {
-    sid    = "StartStateMachine"
-    effect = "Allow"
-    actions = [
-      "states:StartExecution",
-    ]
-    resources = [
-      aws_sfn_state_machine.etl_pipeline.arn,
-    ]
-  }
-}
-
-resource "aws_iam_policy" "eventbridge_sfn" {
-  name        = "etl-eventbridge-sfn-policy"
-  description = "Allow EventBridge to start the etl-pipeline Step Functions state machine"
-  policy      = data.aws_iam_policy_document.eventbridge_sfn.json
-}
-
-resource "aws_iam_role_policy_attachment" "eventbridge_sfn" {
-  role       = aws_iam_role.eventbridge_sfn.name
-  policy_arn = aws_iam_policy.eventbridge_sfn.arn
-}
-
 resource "aws_cloudwatch_event_rule" "s3_listening_activity" {
   name        = "etl-s3-listening-activity-uploaded"
   description = "Trigger ETL pipeline when a new file lands in listening-activity/ prefix"
@@ -335,21 +295,151 @@ resource "aws_cloudwatch_event_rule" "s3_listening_activity" {
   })
 }
 
-resource "aws_cloudwatch_event_target" "sfn_etl_pipeline" {
-  rule     = aws_cloudwatch_event_rule.s3_listening_activity.name
-  arn      = aws_sfn_state_machine.etl_pipeline.arn
-  role_arn = aws_iam_role.eventbridge_sfn.arn
+# Route uploads to the dispatch queue (not directly to Step Functions) so a
+# burst of uploads coalesces into one run and runs never overlap. EventBridge ->
+# SQS needs a queue resource policy (below), not an IAM role.
+resource "aws_cloudwatch_event_target" "sqs_pipeline_dispatch" {
+  rule = aws_cloudwatch_event_rule.s3_listening_activity.name
+  arn  = aws_sqs_queue.pipeline_dispatch.arn
+}
 
-  input = jsonencode({
-    raw_bucket       = module.raw_data.bucket_id
-    archive_bucket   = module.archive.bucket_id
-    processed_bucket = module.processed_data.bucket_id
-    metrics_table    = module.dynamodb.table_name
-    listening_prefix = "listening-activity/"
-    songs_prefix     = "song-catalog/"
-    users_prefix     = "user-profiles/"
-    run_date         = ""
+###############################################################################
+# Pipeline dispatcher: SQS coalescing + serialization in front of Step Functions
+###############################################################################
+
+resource "aws_sqs_queue" "pipeline_dispatch_dlq" {
+  name                      = "${var.project_name}-pipeline-dispatch-dlq"
+  message_retention_seconds = 1209600 # 14 days
+}
+
+resource "aws_sqs_queue" "pipeline_dispatch" {
+  name                       = "${var.project_name}-pipeline-dispatch"
+  visibility_timeout_seconds = var.dispatcher_queue_visibility_timeout_seconds
+  message_retention_seconds  = 86400
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.pipeline_dispatch_dlq.arn
+    maxReceiveCount     = var.dispatcher_max_receive_count
   })
+}
+
+# Allow the EventBridge rule (and only it) to send to the queue.
+data "aws_iam_policy_document" "pipeline_dispatch_queue" {
+  statement {
+    sid       = "AllowEventBridgeSend"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.pipeline_dispatch.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.s3_listening_activity.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "pipeline_dispatch" {
+  queue_url = aws_sqs_queue.pipeline_dispatch.id
+  policy    = data.aws_iam_policy_document.pipeline_dispatch_queue.json
+}
+
+# Package the handler at plan time — no separate CI build step.
+data "archive_file" "pipeline_dispatcher" {
+  type        = "zip"
+  source_file = "${path.root}/../lambda/pipeline_dispatcher/handler.py"
+  output_path = "${path.module}/build/pipeline_dispatcher.zip"
+}
+
+data "aws_iam_policy_document" "dispatcher_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "pipeline_dispatcher" {
+  name               = "${var.project_name}-pipeline-dispatcher-role"
+  assume_role_policy = data.aws_iam_policy_document.dispatcher_trust.json
+}
+
+data "aws_iam_policy_document" "pipeline_dispatcher" {
+  statement {
+    sid       = "Logs"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-pipeline-dispatcher*"]
+  }
+  statement {
+    sid    = "ConsumeQueue"
+    effect = "Allow"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:ChangeMessageVisibility",
+    ]
+    resources = [aws_sqs_queue.pipeline_dispatch.arn]
+  }
+  statement {
+    sid       = "DispatchExecutions"
+    effect    = "Allow"
+    actions   = ["states:StartExecution", "states:ListExecutions"]
+    resources = [aws_sfn_state_machine.etl_pipeline.arn]
+  }
+}
+
+resource "aws_iam_policy" "pipeline_dispatcher" {
+  name        = "${var.project_name}-pipeline-dispatcher-policy"
+  description = "Dispatcher Lambda: consume dispatch queue, start/list etl-pipeline executions, write logs"
+  policy      = data.aws_iam_policy_document.pipeline_dispatcher.json
+}
+
+resource "aws_iam_role_policy_attachment" "pipeline_dispatcher" {
+  role       = aws_iam_role.pipeline_dispatcher.name
+  policy_arn = aws_iam_policy.pipeline_dispatcher.arn
+}
+
+resource "aws_lambda_function" "pipeline_dispatcher" {
+  function_name                  = "${var.project_name}-pipeline-dispatcher"
+  role                           = aws_iam_role.pipeline_dispatcher.arn
+  runtime                        = "python3.11"
+  handler                        = "handler.handler"
+  filename                       = data.archive_file.pipeline_dispatcher.output_path
+  source_code_hash               = data.archive_file.pipeline_dispatcher.output_base64sha256
+  timeout                        = 30
+  reserved_concurrent_executions = 1 # single consumer -> the RUNNING guard cannot race itself
+
+  environment {
+    variables = {
+      STATE_MACHINE_ARN = aws_sfn_state_machine.etl_pipeline.arn
+      QUEUE_URL         = aws_sqs_queue.pipeline_dispatch.id
+      WAIT_SECONDS      = "60"
+      RAW_BUCKET        = module.raw_data.bucket_id
+      ARCHIVE_BUCKET    = module.archive.bucket_id
+      PROCESSED_BUCKET  = module.processed_data.bucket_id
+      METRICS_TABLE     = module.dynamodb.table_name
+      LISTENING_PREFIX  = "listening-activity/"
+      SONGS_PREFIX      = "song-catalog/"
+      USERS_PREFIX      = "user-profiles/"
+    }
+  }
+}
+
+# Coalesce a burst into one invocation via the batching window + large batch size.
+resource "aws_lambda_event_source_mapping" "pipeline_dispatch" {
+  event_source_arn                   = aws_sqs_queue.pipeline_dispatch.arn
+  function_name                      = aws_lambda_function.pipeline_dispatcher.arn
+  batch_size                         = 100
+  maximum_batching_window_in_seconds = var.dispatcher_batching_window_seconds
+  function_response_types            = ["ReportBatchItemFailures"]
 }
 
 resource "aws_sfn_state_machine" "etl_pipeline" {
