@@ -11,28 +11,25 @@ $RAW = "raw-data-etl-dev-559050223770"
 aws s3 cp data/songs/songs.csv s3://$RAW/song-catalog/songs.csv
 aws s3 cp data/users/users.csv s3://$RAW/user-profiles/users.csv
 
-# 2. Combine the stream files into ONE upload (see why below), LAST — this TRIGGERS the pipeline
-Get-Content data/streams/streams1.csv | Set-Content streams_all.csv
-Get-Content data/streams/streams2.csv | Select-Object -Skip 1 | Add-Content streams_all.csv
-Get-Content data/streams/streams3.csv | Select-Object -Skip 1 | Add-Content streams_all.csv
-aws s3 cp streams_all.csv s3://$RAW/listening-activity/streams_all.csv
+# 2. Stream files LAST — drop them separately, the queue coalesces them into ONE run
+aws s3 cp data/streams/streams1.csv s3://$RAW/listening-activity/streams1.csv
+aws s3 cp data/streams/streams2.csv s3://$RAW/listening-activity/streams2.csv
+aws s3 cp data/streams/streams3.csv s3://$RAW/listening-activity/streams3.csv
 ```
 
 Upload to `listening-activity/` is the ignition key. Everything else must already be in place when you turn it.
 
 **Filenames don't matter — prefixes do.** EventBridge matches the S3 *key
-prefix* `listening-activity/`, not any filename. `streams1.csv`,
-`streams_all.csv`, `foo.csv` — all trigger equally, as long as the object key
-starts with `listening-activity/` and ends `.csv`. Likewise your local folder
-names (`data/streams/`, `data/songs/`, `data/users/`) are irrelevant — what
-counts is the S3 destination prefix you copy them TO.
+prefix* `listening-activity/`, not any filename. `streams1.csv`, `foo.csv` —
+all trigger equally, as long as the object key starts with `listening-activity/`
+and ends `.csv`. Likewise your local folder names (`data/streams/`, etc.) are
+irrelevant — what counts is the S3 destination prefix you copy them TO.
 
-**Why combine the 3 stream files?** Each individual upload under
-`listening-activity/` fires its own pipeline execution. Uploading
-streams1/2/3 separately = 3 concurrent runs racing each other (and each run
-processes ALL files under the prefix anyway, so you'd compute the same thing
-3×). One combined file = one clean run. The headers are identical, so
-concatenation (skipping the repeated header rows) is safe.
+**No need to combine the stream files anymore.** A dispatch queue (SQS) sits
+between the upload event and the pipeline. Uploads inside a ~90-second window
+are **coalesced into a single execution**, and the queue guarantees runs never
+overlap — so dropping streams1/2/3 seconds apart yields exactly one clean run
+that processes all three. See *How the queue serializes runs* below.
 
 ---
 
@@ -129,20 +126,39 @@ Column order doesn't matter; names do (exact match).
 Zero-byte file or non-UTF-8 encoding → validation FAIL → file **moved to
 `rejected/`**. Fix the file and upload a fresh copy.
 
-### 6. Multiple listening-activity files at once
-**Each object creation fires its own execution.** Upload 5 listening files →
-5 concurrent pipeline runs. Not catastrophic (DynamoDB writes are idempotent
-on (genre, date) and each run overwrites its output partitions), but it burns
-Glue DPU-hours and the runs race each other. Prefer one consolidated
-listening CSV per batch; if you must upload many, expect N executions.
+### 6. Uploading more files while a run is in flight
+The dispatch queue defers the new batch and fires a fresh run **after** the
+current one finishes (see below) — so no overlap. But beware: run 1's archive
+step empties the raw bucket (incl. reference data), so the deferred run 2 then
+fails validation unless you re-upload a complete set. Treat a run as consuming
+everything present; upload the next batch only after the previous run finishes
+AND you've re-staged all three file types.
 
-### 7. Re-uploading to a prefix mid-run
-Same as #6 — a new listening upload during a run starts a second, overlapping
-execution. Wait for the current run to finish (~5-10 min) before the next batch.
-
-### 8. Forgetting files were archived
+### 7. Forgetting files were archived
 Run 2 fails validation because run 1's archive step emptied the raw bucket.
 Always upload a complete fresh set per run.
+
+---
+
+## How the queue serializes runs
+
+```
+upload(s) → EventBridge rule → SQS dispatch queue → dispatcher Lambda → Step Functions
+```
+
+- **Coalesce:** the Lambda reads the queue with a ~90s batching window, so a
+  burst of uploads collapses into ONE invocation → ONE execution.
+- **Serialize:** before starting, the Lambda checks for a RUNNING execution. If
+  one exists, it defers the messages (extends their visibility) and re-checks
+  later — so two runs never overlap. Exactly one fresh run fires once the
+  current finishes.
+- Bad/poison messages dead-letter after 50 receives (`etl-pipeline-dispatch-dlq`);
+  normal "waiting for the current run" deferrals do NOT count as failures.
+
+Inspect the queue:
+```powershell
+aws sqs get-queue-attributes --queue-url (aws sqs get-queue-url --queue-name etl-pipeline-dispatch --query QueueUrl --output text) --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible --region eu-west-1
+```
 
 ---
 
@@ -165,10 +181,11 @@ A `FAILED` execution names the failing stage (`ValidationFailed`,
 SNS topic `etl-pipeline-alerts` gets alarm notifications on repeated Glue
 job failures.
 
-## Manual trigger (skip the event)
+## Manual trigger (skip the queue)
 
-Re-run without re-uploading the listening file — start the state machine
-directly with the same input EventBridge would send:
+Re-run without re-uploading — start the state machine directly. **This bypasses
+the dispatch queue's serialization guard**, so only use it when you know no run
+is active (check with the verify command above). Same input the dispatcher sends:
 
 ```powershell
 aws stepfunctions start-execution --state-machine-arn arn:aws:states:eu-west-1:559050223770:stateMachine:etl-pipeline --input '{"raw_bucket":"raw-data-etl-dev-559050223770","archive_bucket":"archive-etl-dev-559050223770","processed_bucket":"processed-data-etl-dev-559050223770","metrics_table":"MusicKPIs","listening_prefix":"listening-activity/","songs_prefix":"song-catalog/","users_prefix":"user-profiles/","run_date":""}'
