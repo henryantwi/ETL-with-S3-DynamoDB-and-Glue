@@ -25,3 +25,21 @@ variable "aws_account_id" {
   type        = string
   description = "AWS account ID for ARN construction"
 }
+
+variable "dispatcher_batching_window_seconds" {
+  type        = number
+  description = "Max seconds SQS waits to fill a batch before invoking the dispatcher Lambda (coalesces a burst of uploads into one run)"
+  default     = 90
+}
+
+variable "dispatcher_queue_visibility_timeout_seconds" {
+  type        = number
+  description = "Visibility timeout for the pipeline dispatch queue; must exceed the max pipeline duration"
+  default     = 960
+}
+
+variable "dispatcher_max_receive_count" {
+  type        = number
+  description = "Receives before a dispatch message is dead-lettered; high because deferring during an in-flight run is deliberate polling, not failure"
+  default     = 50
+}
