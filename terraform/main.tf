@@ -414,8 +414,13 @@ resource "aws_lambda_function" "pipeline_dispatcher" {
   handler                        = "handler.handler"
   filename                       = data.archive_file.pipeline_dispatcher.output_path
   source_code_hash               = data.archive_file.pipeline_dispatcher.output_base64sha256
-  timeout                        = 30
-  reserved_concurrent_executions = 1 # single consumer -> the RUNNING guard cannot race itself
+  timeout = 30
+  # Reserved concurrency would pin this to a single consumer (the RUNNING guard
+  # cannot race itself), but the account's concurrent-execution limit is 10 and
+  # any reservation drops unreserved capacity below the hard floor of 10. Omit
+  # it; serialization falls back to the _has_running_execution() guard in the
+  # handler. Restore `reserved_concurrent_executions = 1` once the account
+  # concurrency quota is raised above 10.
 
   environment {
     variables = {
