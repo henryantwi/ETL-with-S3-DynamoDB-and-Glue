@@ -154,6 +154,8 @@ data "aws_iam_policy_document" "deploy_manage" {
       "dynamodb:*",
       "events:*",
       "sns:*",
+      "sqs:*",
+      "lambda:*",
       "cloudwatch:*",
       "logs:*",
     ]
