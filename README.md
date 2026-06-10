@@ -177,6 +177,12 @@ pytest tests/unit/metrics_writer/
 
 ---
 
+## Data Model
+
+![Entity-relationship diagram: listening_activity joins users and songs; genre_metrics_output (date, genre) feeds music_kpis (genre, date) with computed KPIs.](erd.png)
+
+---
+
 ## See Also
 
 - [`docs/dynamo-queries.md`](docs/dynamo-queries.md) — Sample DynamoDB queries for KPI lookup

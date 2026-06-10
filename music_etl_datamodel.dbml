@@ -1,0 +1,155 @@
+// Music Streaming ETL Pipeline — Data Model
+// Docs: https://dbml.dbdiagram.io/docs
+//
+// Three CSV inputs flow through Glue jobs into processed parquet,
+// then aggregated KPIs land in DynamoDB (MusicKPIs table).
+
+// ─────────────────────────────────────────────
+// INPUT LAYER (raw CSV files in S3)
+// ─────────────────────────────────────────────
+
+Table listening_activity {
+  user_id    varchar [not null, note: 'FK to users.user_id']
+  track_id   varchar [not null, note: 'FK to songs.track_id']
+  listen_time timestamp [not null, note: 'Used to derive run_date partition']
+
+  Note: 'Raw stream events — s3://{raw_bucket}/listening-activity/'
+}
+
+Table songs {
+  track_id          varchar [primary key]
+  track_name        varchar [not null]
+  artists           varchar [not null]
+  track_genre       varchar [not null, note: 'Drives genre partitioning']
+  duration_ms       integer [not null, note: 'Converted to duration_seconds in transform']
+  album_name        varchar
+  popularity        integer
+  explicit          boolean
+  danceability      float
+  energy            float
+  key               integer
+  loudness          float
+  mode              integer
+  speechiness       float
+  acousticness      float
+  instrumentalness  float
+  liveness          float
+  valence           float
+  tempo             float
+  time_signature    integer
+
+  Note: 'Song catalog — s3://{raw_bucket}/song-catalog/'
+}
+
+Table users {
+  user_id      varchar [primary key]
+  user_name    varchar [not null]
+  user_country varchar [not null]
+  user_age     integer
+  created_at   timestamp
+
+  Note: 'User profiles — s3://{raw_bucket}/user-profiles/'
+}
+
+// ─────────────────────────────────────────────
+// PROCESSED LAYER (Parquet output from Glue genre_metrics job)
+// Partitioned by date= and genre= in S3
+// ─────────────────────────────────────────────
+
+Table genre_metrics_output {
+  date                        varchar [not null, note: 'Partition key — YYYY-MM-DD derived from listen_time']
+  genre                       varchar [not null, note: 'Partition key — from songs.track_genre']
+  listen_count                bigint  [not null, note: 'Total plays for this genre on this date']
+  unique_listener_count       bigint  [not null, note: 'COUNT DISTINCT user_id']
+  total_listening_time        float   [not null, note: 'Sum of duration_seconds for all listens']
+  avg_listening_time_per_user float   [not null, note: 'total_listening_time / unique_listener_count']
+
+  indexes {
+    (date, genre) [pk]
+  }
+
+  Note: '''
+    s3://{processed_bucket}/output/date={date}/genre={genre}/*.parquet
+    Nested fields (top_3_songs, top_5_genres) are arrays of structs — see DynamoDB table below.
+    Written by etl-genre-metrics Glue job (PySpark G.1X x2).
+  '''
+}
+
+// ─────────────────────────────────────────────
+// OUTPUT LAYER (DynamoDB — MusicKPIs table)
+// Idempotent upserts: same (genre, date) overwrites same item
+// ─────────────────────────────────────────────
+
+Table music_kpis [note: 'DynamoDB table: MusicKPIs'] {
+  genre                       varchar [not null, note: 'Partition key (hash_key)']
+  date                        varchar [not null, note: 'Sort key (range_key) — YYYY-MM-DD']
+  listen_count                integer [not null]
+  unique_listener_count       integer [not null]
+  total_listening_time        integer [not null, note: 'Seconds, converted from float']
+  avg_listening_time_per_user decimal [not null, note: 'Decimal — avg seconds per user']
+
+  indexes {
+    (genre, date) [pk]
+  }
+
+  Note: '''
+    Items written via TransactWriteItems (max 100/batch, max 400 KB/item).
+    top_3_songs and top_5_genres are DynamoDB List<Map> attributes (not relational columns).
+
+    top_3_songs: [{song_id, song_name, listen_count}, ...]   -- up to 3 entries
+    top_5_genres: [{genre_id, genre_name, listen_count}, ...]-- top 5 genres for the date
+
+    Written by etl-metrics-writer Glue job (pythonshell, 0.0625 DPU).
+  '''
+}
+
+// ─────────────────────────────────────────────
+// RELATIONSHIPS
+// ─────────────────────────────────────────────
+
+Ref stream_user: listening_activity.user_id > users.user_id
+// many streams per user
+
+Ref stream_song: listening_activity.track_id > songs.track_id
+// many streams per song
+
+Ref metrics_source: music_kpis.(date, genre) - genre_metrics_output.(date, genre)
+// 1:1 — each processed partition row maps to one DynamoDB item
+
+// ─────────────────────────────────────────────
+// SAMPLE RECORDS
+// ─────────────────────────────────────────────
+
+Records users(user_id, user_name, user_country, user_age) {
+  'u001', 'Alice',   'US', 28
+  'u002', 'Bob',     'GB', 34
+  'u003', 'Candice', 'GH', 22
+  'u004', 'David',   'CA', 41
+}
+
+Records songs(track_id, track_name, artists, track_genre, duration_ms) {
+  't001', 'Blinding Lights',  'The Weeknd',    'pop',    200040
+  't002', 'HUMBLE.',          'Kendrick Lamar','hip-hop', 177000
+  't003', 'Bohemian Rhapsody','Queen',         'rock',   354000
+  't004', 'Bad Guy',          'Billie Eilish', 'pop',    194000
+}
+
+Records listening_activity(user_id, track_id, listen_time) {
+  'u001', 't001', '2024-06-25 08:12:00'
+  'u002', 't002', '2024-06-25 09:45:00'
+  'u003', 't001', '2024-06-25 10:01:00'
+  'u004', 't003', '2024-06-25 11:30:00'
+  'u001', 't004', '2024-06-25 13:22:00'
+}
+
+Records genre_metrics_output(date, genre, listen_count, unique_listener_count, total_listening_time, avg_listening_time_per_user) {
+  '2024-06-25', 'pop',     3, 2, 594, 297.0
+  '2024-06-25', 'hip-hop', 1, 1, 177, 177.0
+  '2024-06-25', 'rock',    1, 1, 354, 354.0
+}
+
+Records music_kpis(genre, date, listen_count, unique_listener_count, total_listening_time, avg_listening_time_per_user) {
+  'pop',     '2024-06-25', 3, 2, 594, 297.0
+  'hip-hop', '2024-06-25', 1, 1, 177, 177.0
+  'rock',    '2024-06-25', 1, 1, 354, 354.0
+}
