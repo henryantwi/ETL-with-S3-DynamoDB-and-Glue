@@ -19,6 +19,15 @@ Authoritative shape of the data exchanged between the writer (`etl-metrics-write
 | Partition key | `genre` | S | Verbatim from Phase 3 output |
 | Sort key | `date` | S | `YYYY-MM-DD` |
 
+## GSI `date-index`
+
+| Position | Attribute | Type | Format |
+|----------|-----------|------|--------|
+| Partition key | `date` | S | `YYYY-MM-DD` |
+| Sort key | `genre` | S | Verbatim from Phase 3 output |
+
+Projection: ALL. DynamoDB maintains the index on every table Put; the writer does not write a separate rank attribute.
+
 ## Item shape
 
 ```json
@@ -76,7 +85,7 @@ item = resp.get("Item")  # absent => no activity that day (FR-010)
 - **Latency**: p95 < 50 ms (SC-001) — inherent DynamoDB `GetItem` behavior.
 - **"Not found"**: response has no `Item` key. Consumers MUST treat as "no activity that day" (FR-010, R6).
 
-### Listing all dates for a genre (secondary, optional)
+### Listing all dates for a genre (secondary)
 
 ```python
 resp = ddb.query(
@@ -86,7 +95,22 @@ resp = ddb.query(
 )
 ```
 
-Not required by this feature but enabled by the chosen key shape.
+Enabled by the table key shape.
+
+### All genres for a date (GSI `date-index`)
+
+```python
+resp = ddb.query(
+    TableName="MusicKPIs",
+    IndexName="date-index",
+    KeyConditionExpression="#d = :date",
+    ExpressionAttributeNames={"#d": "date"},
+    ExpressionAttributeValues={":date": {"S": "2024-06-25"}},
+)
+```
+
+- **Index**: `date-index` — partition key `date`, sort key `genre`, projection ALL.
+- **One Query, no Scan** — returns every `(genre, date)` item for that day.
 
 ## Writer contract
 
@@ -97,7 +121,7 @@ Not required by this feature but enabled by the chosen key shape.
 
 ## Access control
 
-- Read: `metrics-reader-policy` managed IAM policy grants `dynamodb:GetItem` and `dynamodb:Query` on the `MusicKPIs` ARN only. Attached to named consumer roles. No `Scan` granted to any principal (FR-012).
+- Read: `metrics-reader-policy` managed IAM policy grants `dynamodb:GetItem` and `dynamodb:Query` on the `MusicKPIs` table ARN and `.../index/date-index`. Attached to named consumer roles. No `Scan` granted to any principal (FR-012).
 - Write: `etl-glue-writer-role` only, with `PutItem`, `TransactWriteItems`, `DescribeTable`.
 - Anonymous / public access: denied (no resource-based policy; identity-based only).
 

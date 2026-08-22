@@ -4,6 +4,30 @@ The `MusicKPIs` table uses a composite primary key:
 - **Partition Key**: `genre` (String)
 - **Sort Key**: `date` (String, format: `YYYY-MM-DD`)
 
+GSI **`date-index`**: partition key `date`, sort key `genre` (projection ALL). Query this index for every genre on a given day.
+
+## Deploying `date-index` (when you are ready)
+
+The index is defined in Terraform. It is **not** created by a pull-request CI
+run. `terraform-plan` on the PR is read-only; **`terraform apply` on merge to
+`main`** adds the GSI in place on the existing `MusicKPIs` table.
+
+Chicken-and-egg, solved:
+
+1. You do **not** create the GSI in the console first.
+2. You do **not** `terraform apply` from the Windows CLI account (`024893220675`).
+   CI uses account `559050223770` (GitHub vars `AWS_ACCOUNT_ID` / `BUCKET_SUFFIX`,
+   secrets `AWS_PLAN_ROLE_ARN` / `AWS_DEPLOY_ROLE_ARN`).
+3. Merge the PR. Wait until `describe-table` shows `date-index` **ACTIVE**.
+4. Then run the Query examples below.
+
+Until ACTIVE, `GetItem` by `(genre, date)` still works; Query on `date-index` does not.
+
+```bash
+aws dynamodb describe-table --table-name MusicKPIs --region eu-west-1 \
+  --query "Table.GlobalSecondaryIndexes[*].{Name:IndexName,Status:IndexStatus}"
+```
+
 ---
 
 ## 1. Get All Metrics for a Genre on a Specific Date
@@ -80,7 +104,9 @@ aws dynamodb get-item \
 
 ---
 
-## 6. Scan All Genres for a Date (Full Daily Report)
+## 6. Query All Genres for a Date (Full Daily Report)
+
+Use the `date-index` GSI (`date` partition key, `genre` sort key). Do not Scan.
 
 ```bash
 aws dynamodb query \
@@ -88,18 +114,10 @@ aws dynamodb query \
   --index-name date-index \
   --key-condition-expression "#d = :date" \
   --expression-attribute-names '{"#d":"date"}' \
-  --expression-attribute-values '{"date":{"S":"2024-06-25"}}'
+  --expression-attribute-values '{":date":{"S":"2024-06-25"}}'
 ```
 
-*Note: Requires a GSI on `date` as partition key. If not present, use Scan with filter:*
-
-```bash
-aws dynamodb scan \
-  --table-name MusicKPIs \
-  --filter-expression "#d = :date" \
-  --expression-attribute-names '{"#d":"date"}' \
-  --expression-attribute-values '{"date":{"S":"2024-06-25"}}'
-```
+Requires `metrics-reader-policy` (GetItem/Query on the table ARN **and** `.../index/date-index`). Scan is not granted.
 
 ---
 
@@ -108,11 +126,12 @@ aws dynamodb scan \
 Project only the scalar metrics (exclude nested lists):
 
 ```bash
-aws dynamodb scan \
+aws dynamodb query \
   --table-name MusicKPIs \
-  --filter-expression "#d = :date" \
+  --index-name date-index \
+  --key-condition-expression "#d = :date" \
   --expression-attribute-names '{"#d":"date"}' \
-  --expression-attribute-values '{"date":{"S":"2024-06-25"}}' \
+  --expression-attribute-values '{":date":{"S":"2024-06-25"}}' \
   --projection-expression "genre, #d, listen_count, unique_listener_count, total_listening_time, avg_listening_time_per_user"
 ```
 
@@ -155,20 +174,22 @@ response = table.get_item(
 
 ## 9. Common Aggregations (Client-Side)
 
-DynamoDB doesn't support aggregation queries natively. Use Scan + reduce:
+DynamoDB doesn't support aggregation queries natively. Query `date-index`, then reduce client-side:
 
 ```python
 import boto3
 from functools import reduce
+from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table("MusicKPIs")
 
-# Get total listens across all genres on a date
+# Get total listens across all genres on a date (client-side sum after GSI Query)
 def total_listens_for_date(date: str) -> int:
-    response = table.scan(
-        FilterExpression=boto3.dynamodb.conditions.Attr("date").eq(date),
-        ProjectionExpression="listen_count"
+    response = table.query(
+        IndexName="date-index",
+        KeyConditionExpression=Key("date").eq(date),
+        ProjectionExpression="listen_count",
     )
     return reduce(
         lambda acc, item: acc + int(item.get("listen_count", 0)),

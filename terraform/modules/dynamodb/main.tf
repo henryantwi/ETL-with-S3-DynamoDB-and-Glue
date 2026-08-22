@@ -24,6 +24,13 @@ resource "aws_dynamodb_table" "this" {
 
   deletion_protection_enabled = true
 
+  global_secondary_index {
+    name            = "date-index"
+    hash_key        = "date"
+    range_key       = "genre"
+    projection_type = "ALL"
+  }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment

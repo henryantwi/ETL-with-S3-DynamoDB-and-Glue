@@ -31,6 +31,16 @@ def _make_table():
             {"AttributeName": "genre", "AttributeType": "S"},
             {"AttributeName": "date", "AttributeType": "S"},
         ],
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "date-index",
+                "KeySchema": [
+                    {"AttributeName": "date", "KeyType": "HASH"},
+                    {"AttributeName": "genre", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            }
+        ],
         BillingMode="PAY_PER_REQUEST",
     )
     return ddb
@@ -224,6 +234,38 @@ def test_all_five_genres_written():
             Key={"genre": {"S": f"genre_{i}"}, "date": {"S": RUN_DATE}},
         )
         assert resp.get("Item") is not None, f"missing genre_{i}"
+
+
+@mock_aws
+def test_date_index_query_returns_all_genres_for_day():
+    s3 = _make_bucket()
+    ddb = _make_table()
+
+    _upload_parquet(s3, _fixture_rows(5))
+    run_pipeline(_args(), s3=s3, ddb=ddb, cw=_noop_cw())
+
+    resp = ddb.query(
+        TableName=TABLE_NAME,
+        IndexName="date-index",
+        KeyConditionExpression="#d = :date",
+        ExpressionAttributeNames={"#d": "date"},
+        ExpressionAttributeValues={":date": {"S": RUN_DATE}},
+    )
+    items = resp.get("Items", [])
+    assert len(items) == 5
+    genres = {item["genre"]["S"] for item in items}
+    assert genres == {f"genre_{i}" for i in range(5)}
+    required = (
+        "listen_count",
+        "unique_listener_count",
+        "total_listening_time",
+        "avg_listening_time_per_user",
+        "top_3_songs",
+        "top_5_genres",
+    )
+    for item in items:
+        for field in required:
+            assert field in item, f"missing field {field} on {item.get('genre')}"
 
 
 @mock_aws

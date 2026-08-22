@@ -105,7 +105,8 @@ module "iam" {
   processed_bucket_arn    = module.processed_data.bucket_arn
   aws_region              = var.aws_region
   aws_account_id          = var.aws_account_id
-  dynamodb_table_arn      = module.dynamodb.table_arn
+  dynamodb_table_arn       = module.dynamodb.table_arn
+  dynamodb_date_index_arn  = module.dynamodb.date_index_arn
 }
 
 ###############################################################################
