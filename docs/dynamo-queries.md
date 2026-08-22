@@ -6,6 +6,28 @@ The `MusicKPIs` table uses a composite primary key:
 
 GSI **`date-index`**: partition key `date`, sort key `genre` (projection ALL). Query this index for every genre on a given day.
 
+## Deploying `date-index` (when you are ready)
+
+The index is defined in Terraform. It is **not** created by a pull-request CI
+run. `terraform-plan` on the PR is read-only; **`terraform apply` on merge to
+`main`** adds the GSI in place on the existing `MusicKPIs` table.
+
+Chicken-and-egg, solved:
+
+1. You do **not** create the GSI in the console first.
+2. You do **not** `terraform apply` from the Windows CLI account (`024893220675`).
+   CI uses account `559050223770` (GitHub vars `AWS_ACCOUNT_ID` / `BUCKET_SUFFIX`,
+   secrets `AWS_PLAN_ROLE_ARN` / `AWS_DEPLOY_ROLE_ARN`).
+3. Merge the PR. Wait until `describe-table` shows `date-index` **ACTIVE**.
+4. Then run the Query examples below.
+
+Until ACTIVE, `GetItem` by `(genre, date)` still works; Query on `date-index` does not.
+
+```bash
+aws dynamodb describe-table --table-name MusicKPIs --region eu-west-1 \
+  --query "Table.GlobalSecondaryIndexes[*].{Name:IndexName,Status:IndexStatus}"
+```
+
 ---
 
 ## 1. Get All Metrics for a Genre on a Specific Date
