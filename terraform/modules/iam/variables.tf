@@ -32,3 +32,8 @@ variable "dynamodb_table_arn" {
   type        = string
   description = "ARN of the MusicKPIs DynamoDB table"
 }
+
+variable "dynamodb_date_index_arn" {
+  type        = string
+  description = "ARN of the MusicKPIs date-index GSI"
+}

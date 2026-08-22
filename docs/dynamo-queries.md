@@ -4,6 +4,8 @@ The `MusicKPIs` table uses a composite primary key:
 - **Partition Key**: `genre` (String)
 - **Sort Key**: `date` (String, format: `YYYY-MM-DD`)
 
+GSI **`date-index`**: partition key `date`, sort key `genre` (projection ALL). Query this index for every genre on a given day.
+
 ---
 
 ## 1. Get All Metrics for a Genre on a Specific Date
@@ -80,7 +82,9 @@ aws dynamodb get-item \
 
 ---
 
-## 6. Scan All Genres for a Date (Full Daily Report)
+## 6. Query All Genres for a Date (Full Daily Report)
+
+Use the `date-index` GSI (`date` partition key, `genre` sort key). Do not Scan.
 
 ```bash
 aws dynamodb query \
@@ -88,18 +92,10 @@ aws dynamodb query \
   --index-name date-index \
   --key-condition-expression "#d = :date" \
   --expression-attribute-names '{"#d":"date"}' \
-  --expression-attribute-values '{"date":{"S":"2024-06-25"}}'
+  --expression-attribute-values '{":date":{"S":"2024-06-25"}}'
 ```
 
-*Note: Requires a GSI on `date` as partition key. If not present, use Scan with filter:*
-
-```bash
-aws dynamodb scan \
-  --table-name MusicKPIs \
-  --filter-expression "#d = :date" \
-  --expression-attribute-names '{"#d":"date"}' \
-  --expression-attribute-values '{"date":{"S":"2024-06-25"}}'
-```
+Requires `metrics-reader-policy` (GetItem/Query on the table ARN **and** `.../index/date-index`). Scan is not granted.
 
 ---
 
@@ -108,11 +104,12 @@ aws dynamodb scan \
 Project only the scalar metrics (exclude nested lists):
 
 ```bash
-aws dynamodb scan \
+aws dynamodb query \
   --table-name MusicKPIs \
-  --filter-expression "#d = :date" \
+  --index-name date-index \
+  --key-condition-expression "#d = :date" \
   --expression-attribute-names '{"#d":"date"}' \
-  --expression-attribute-values '{"date":{"S":"2024-06-25"}}' \
+  --expression-attribute-values '{":date":{"S":"2024-06-25"}}' \
   --projection-expression "genre, #d, listen_count, unique_listener_count, total_listening_time, avg_listening_time_per_user"
 ```
 
@@ -155,20 +152,22 @@ response = table.get_item(
 
 ## 9. Common Aggregations (Client-Side)
 
-DynamoDB doesn't support aggregation queries natively. Use Scan + reduce:
+DynamoDB doesn't support aggregation queries natively. Query `date-index`, then reduce client-side:
 
 ```python
 import boto3
 from functools import reduce
+from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table("MusicKPIs")
 
-# Get total listens across all genres on a date
+# Get total listens across all genres on a date (client-side sum after GSI Query)
 def total_listens_for_date(date: str) -> int:
-    response = table.scan(
-        FilterExpression=boto3.dynamodb.conditions.Attr("date").eq(date),
-        ProjectionExpression="listen_count"
+    response = table.query(
+        IndexName="date-index",
+        KeyConditionExpression=Key("date").eq(date),
+        ProjectionExpression="listen_count",
     )
     return reduce(
         lambda acc, item: acc + int(item.get("listen_count", 0)),

@@ -58,6 +58,11 @@ output "music_kpis_table_name" {
   value       = module.dynamodb.table_name
 }
 
+output "music_kpis_date_index_arn" {
+  description = "ARN of MusicKPIs date-index GSI"
+  value       = module.dynamodb.date_index_arn
+}
+
 output "etl_pipeline_state_machine_arn" {
   description = "ARN of the etl-pipeline Step Functions state machine"
   value       = aws_sfn_state_machine.etl_pipeline.arn

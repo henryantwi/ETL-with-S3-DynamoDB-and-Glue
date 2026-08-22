@@ -515,7 +515,10 @@ data "aws_iam_policy_document" "metrics_reader" {
       "dynamodb:GetItem",
       "dynamodb:Query",
     ]
-    resources = [var.dynamodb_table_arn]
+    resources = [
+      var.dynamodb_table_arn,
+      var.dynamodb_date_index_arn,
+    ]
   }
 }
 

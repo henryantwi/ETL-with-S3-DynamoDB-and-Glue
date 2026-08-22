@@ -11,6 +11,14 @@ One item per `(genre, date)` pair. Replaced wholesale on each successful run (FR
 | `genre` | String (S) | Partition Key | Verbatim genre identifier from Phase 3 output (UTF-8, ≤ 2048 B) |
 | `date` | String (S) | Sort Key | `YYYY-MM-DD`, single canonical TZ fixed upstream (10 B) |
 
+### Access patterns
+
+| Pattern | API | Notes |
+|---------|-----|-------|
+| All KPIs for genre X on date Y | `GetItem(PK=genre, SK=date)` | Primary lookup |
+| All dates for genre X | `Query` on table | Table SK is `date` |
+| All genres for date Y | `Query` on GSI `date-index` | GSI PK=`date`, SK=`genre`, projection ALL |
+
 ### Attribute schema
 
 | Attribute | DDB Type | Source | Constraint |
@@ -65,7 +73,7 @@ Spans all `(genre, date)` items written for a single input `run_date`. Not persi
 
 | Principal | DynamoDB actions | Resource | Notes |
 |-----------|------------------|----------|-------|
-| `etl-glue-writer-role` | `PutItem`, `TransactWriteItems`, `DescribeTable` | `arn:aws:dynamodb:<region>:<account>:table/MusicKPIs` | Writer only; no read |
-| Consumer roles (named, e.g. `dashboard-reader-role`) | `GetItem`, `Query` | `arn:aws:dynamodb:<region>:<account>:table/MusicKPIs` | Attached via shared `metrics-reader-policy`; explicit deny on `Scan` is unnecessary since `Scan` is not granted |
+| `etl-glue-writer-role` | `PutItem`, `TransactWriteItems`, `DescribeTable` | `arn:aws:dynamodb:<region>:<account>:table/MusicKPIs` | Writer only; no read; GSI updates are implicit on Put |
+| Consumer roles (named, e.g. `dashboard-reader-role`) | `GetItem`, `Query` | table ARN + `.../index/date-index` | Attached via shared `metrics-reader-policy`; `Scan` is not granted |
 
 No principal — including the writer role — is granted `Scan` or `DeleteItem` or table-admin actions.
